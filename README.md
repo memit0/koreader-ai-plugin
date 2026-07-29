@@ -89,6 +89,24 @@ To use AskGPT, simply highlight the text you want explained and select "Explain"
 
 If something goes wrong (missing API key, no credit on the account, no network), the plugin tells you what happened instead of closing KOReader. Errors reported by the API — an invalid key, an unknown model id, an exhausted balance — are shown verbatim, so a typo'd `OPENROUTER_MODEL` says so.
 
+## Where your explanations go
+
+Each explanation is saved in two places.
+
+**Onto the highlight itself.** The passage becomes a highlight in the book (if it wasn't one already) and the explanation is attached as its note, after a `— AskGPT —` separator. It therefore shows up in KOReader's own **Bookmarks** list next to your highlights and your own notes, and is picked up by the built-in Exporter. Any note you wrote yourself is kept and appended to, never overwritten. Set `features.save_to_notes = false` to switch this off.
+
+**Into a local history.** A small SQLite database in `koreader/settings/askgpt_history.sqlite3` keeps the full conversation, including any follow-up questions, grouped per book. Browse it from **Menu → AskGPT → Browse saved explanations**, which works both while reading and from the file manager.
+
+Roughly 1–3 KB per explanation, so a thousand of them is about 2 MB.
+
+## Syncing to the web app
+
+**Menu → AskGPT** also has **Pair with web app** and **Sync to web app**. Pairing asks for the short code the web app shows you — six characters rather than a long token, because e-ink keyboards are painful. Sync then pushes your highlights, your notes and your explanations.
+
+It is built for bad wifi. Work goes out in small batches and each is confirmed by the server before being marked done, so if the connection drops half way through, the batches that got there stay done and the next sync picks up where it stopped. Every record carries a stable id and the server matches on it, so re-sending can never duplicate anything. Sync only ever runs when you ask it to.
+
+Push only: the device is the source of truth and the web app displays. Nothing is downloaded back.
+
 ## Troubleshooting
 
 **The "Explain" button doesn't appear in the highlight menu.** KOReader only discovers plugins in directories whose name ends in `.koplugin`, so the directory must be named exactly `askgpt.koplugin` — a plain `git clone` gives you `AskGPT` or `koreader-ai-plugin`, which is silently ignored. Check that it is in `koreader/plugins/`, and that "AskGPT" is listed and ticked under Menu → Tools → More tools → Plugin management → User plugins. `koreader/crash.log` logs every directory that was scanned, and any plugin that failed to load.

@@ -4,6 +4,8 @@ local InfoMessage = require("ui/widget/infomessage")
 local _ = require("gettext")
 
 local queryChatGPT = require("gpt_query")
+local Annotations = require("annotations")
+local History = require("history")
 
 local CONFIGURATION = nil
 
@@ -51,7 +53,7 @@ local function runQuery(loading_text, message_history, on_answer)
   UIManager:forceRePaint()
 
   UIManager:nextTick(function()
-    local answer, err = queryChatGPT(message_history)
+    local answer, err, model = queryChatGPT(message_history)
     UIManager:close(loading)
 
     if not answer then
@@ -63,7 +65,7 @@ local function runQuery(loading_text, message_history, on_answer)
       role = "assistant",
       content = answer,
     })
-    on_answer(answer)
+    on_answer(answer, model)
   end)
 end
 
@@ -92,14 +94,22 @@ local function createResultText(highlightedText, message_history)
   return result_text
 end
 
-local function showViewer(viewer_title, highlightedText, message_history)
+-- `conversation_id` is nil when the exchange was not recorded (a failed write, or
+-- a translation with logging off); follow-ups then simply are not recorded either.
+local function showViewer(viewer_title, highlightedText, message_history, conversation_id)
   local function handleNewQuestion(chatgpt_viewer, question)
     table.insert(message_history, {
       role = "user",
       content = question,
     })
 
-    runQuery(_("Asking ChatGPT…"), message_history, function()
+    runQuery(_("Asking ChatGPT…"), message_history, function(answer)
+      if conversation_id then
+        History.appendMessages(conversation_id, {
+          { role = "user", content = question },
+          { role = "assistant", content = answer },
+        })
+      end
       chatgpt_viewer:update(createResultText(highlightedText, message_history))
     end)
   end
@@ -112,7 +122,8 @@ local function showViewer(viewer_title, highlightedText, message_history)
 end
 
 -- Explain the highlight straight away, no question to type in.
-local function explainHighlight(ui, highlightedText)
+-- `index` is the annotation index when an existing highlight was long-pressed.
+local function explainHighlight(ui, highlightedText, index)
   local title, author = getBookContext(ui)
   local message_history = {
     {
@@ -127,8 +138,29 @@ local function explainHighlight(ui, highlightedText)
     },
   }
 
-  runQuery(_("Asking ChatGPT…"), message_history, function()
-    showViewer(_("Explanation"), highlightedText, message_history)
+  runQuery(_("Asking ChatGPT…"), message_history, function(answer, model)
+    -- Attach to the book's own annotation first, so the explanation shows up in
+    -- Bookmarks next to the highlight and the user's notes.
+    local annotation
+    if getFeature("save_to_notes") ~= false then
+      annotation = Annotations.saveToBook(ui, index, answer)
+    end
+
+    local conversation_id = History.startConversation{
+      book = Annotations.getBook(ui),
+      kind = "explain",
+      highlight = highlightedText,
+      chapter = annotation and annotation.chapter,
+      pageno = annotation and annotation.pageno,
+      annotation_datetime = annotation and annotation.datetime,
+      model = model,
+      messages = {
+        { role = "user", content = highlightedText },
+        { role = "assistant", content = answer },
+      },
+    }
+
+    showViewer(_("Explanation"), highlightedText, message_history, conversation_id)
   end)
 end
 
@@ -147,8 +179,22 @@ local function translateHighlight(ui, highlightedText)
     },
   }
 
-  runQuery(_("Translating…"), message_history, function()
-    showViewer(_("Translation"), highlightedText, message_history)
+  runQuery(_("Translating…"), message_history, function(answer, model)
+    -- Translations stay out of your notes, and out of the history unless asked for
+    local conversation_id
+    if getFeature("log_translations") then
+      conversation_id = History.startConversation{
+        book = Annotations.getBook(ui),
+        kind = "translate",
+        highlight = highlightedText,
+        model = model,
+        messages = {
+          { role = "user", content = highlightedText },
+          { role = "assistant", content = answer },
+        },
+      }
+    end
+    showViewer(_("Translation"), highlightedText, message_history, conversation_id)
   end)
 end
 

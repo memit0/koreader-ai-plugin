@@ -187,7 +187,8 @@ local function queryChatGPT(message_history)
     return nil, "The API did not return an answer."
   end
 
-  return choice.message.content
+  -- The model is returned as well so callers can record which one answered
+  return choice.message.content, nil, response.model or model
 end
 
 return queryChatGPT
