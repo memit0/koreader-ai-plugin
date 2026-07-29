@@ -13,7 +13,9 @@ local Env = {}
 local function pluginDir()
   local source = debug.getinfo(1, "S").source
   if type(source) ~= "string" or source:sub(1, 1) ~= "@" then return nil end
-  return source:sub(2):match("^(.*)[/\\][^/\\]*$")
+  -- KOReader always loads us through a path with a directory component, but
+  -- fall back to the working directory if this was loaded by bare filename.
+  return source:sub(2):match("^(.*)[/\\][^/\\]*$") or "."
 end
 
 local function unquote(value)
