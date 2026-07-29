@@ -61,6 +61,16 @@ check("payload carries books", #items_payload.books == 1
     and items_payload.books[1].title == "Book")
 check("conversation payload carries messages",
     #conversations_payload.conversations[1].messages == 2)
+-- The server has no idea what our local rowids mean; records must name the book
+-- by the same uuid the books array uses.
+local book_uuid = items_payload.books[1].uuid
+check("items reference the book by uuid", items_payload.items[1].book_uuid == book_uuid,
+    tostring(items_payload.items[1].book_uuid) .. " vs " .. tostring(book_uuid))
+check("conversations reference the book by uuid",
+    conversations_payload.conversations[1].book_uuid == book_uuid)
+check("no local rowids leak into the payload",
+    items_payload.items[1].book_id == nil
+    and conversations_payload.conversations[1].book_id == nil)
 
 print("\nre-syncing is a no-op")
 local before = #ko.http.sent

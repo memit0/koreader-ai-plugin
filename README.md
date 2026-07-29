@@ -107,6 +107,8 @@ It is built for bad wifi. Work goes out in small batches and each is confirmed b
 
 Push only: the device is the source of truth and the web app displays. Nothing is downloaded back.
 
+The web app itself is in [`web/`](web/) — a Next.js + Supabase project with a library view and a per-book page showing each highlight together with your note and its explanations. It has its own README covering setup and the device API contract. It lives in this repo for now but is standalone and belongs in its own; `web/README.md` has the one-liner to split it out with its history intact.
+
 ## Troubleshooting
 
 **The "Explain" button doesn't appear in the highlight menu.** KOReader only discovers plugins in directories whose name ends in `.koplugin`, so the directory must be named exactly `askgpt.koplugin` — a plain `git clone` gives you `AskGPT` or `koreader-ai-plugin`, which is silently ignored. Check that it is in `koreader/plugins/`, and that "AskGPT" is listed and ticked under Menu → Tools → More tools → Plugin management → User plugins. `koreader/crash.log` logs every directory that was scanned, and any plugin that failed to load.

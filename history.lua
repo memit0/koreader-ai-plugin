@@ -434,21 +434,23 @@ end
 --- to, and the cursor to resume from.
 function History.getDirtyItems(after_id, limit)
     return withConn(function(conn)
+        -- book_uuid, not the local rowid: the server has no idea what our rowids mean
         local stmt = conn:prepare([[
-            SELECT id, uuid, book_id, datetime, text, note, chapter, pageno
-            FROM item WHERE dirty = 1 AND id > ? ORDER BY id LIMIT ?;
+            SELECT i.id, i.uuid, i.book_id, i.datetime, i.text, i.note, i.chapter, i.pageno,
+                   b.uuid
+            FROM item i JOIN book b ON b.id = i.book_id
+            WHERE i.dirty = 1 AND i.id > ? ORDER BY i.id LIMIT ?;
         ]])
         local items, ids, book_ids, cursor = {}, {}, {}, after_id or 0
         stmt:reset():bind(after_id or 0, limit or 25)
         local row = stmt:step()
         while row do
             local id = tonumber(row[1])
-            local book_id = tonumber(row[3])
-            book_ids[book_id] = true
+            book_ids[tonumber(row[3])] = true
             ids[#ids + 1] = id
             cursor = id
             items[#items + 1] = {
-                uuid = row[2], book_id = book_id, datetime = row[4], text = row[5],
+                uuid = row[2], book_uuid = row[9], datetime = row[4], text = row[5],
                 note = row[6], chapter = row[7], pageno = row[8],
             }
             row = stmt:step()
@@ -461,9 +463,10 @@ end
 function History.getDirtyConversations(after_id, limit)
     return withConn(function(conn)
         local stmt = conn:prepare([[
-            SELECT id, uuid, book_id, kind, highlight, chapter, pageno,
-                   annotation_datetime, model, created_at
-            FROM conversation WHERE dirty = 1 AND id > ? ORDER BY id LIMIT ?;
+            SELECT c.id, c.uuid, c.book_id, c.kind, c.highlight, c.chapter, c.pageno,
+                   c.annotation_datetime, c.model, c.created_at, b.uuid
+            FROM conversation c JOIN book b ON b.id = c.book_id
+            WHERE c.dirty = 1 AND c.id > ? ORDER BY c.id LIMIT ?;
         ]])
         local message_stmt = conn:prepare(
             "SELECT ordinal, role, content FROM message WHERE conversation_id = ? ORDER BY ordinal;")
@@ -473,12 +476,11 @@ function History.getDirtyConversations(after_id, limit)
         local row = stmt:step()
         while row do
             local id = tonumber(row[1])
-            local book_id = tonumber(row[3])
-            book_ids[book_id] = true
+            book_ids[tonumber(row[3])] = true
             ids[#ids + 1] = id
             cursor = id
             conversations[#conversations + 1] = {
-                uuid = row[2], book_id = book_id, kind = row[4], highlight = row[5],
+                uuid = row[2], book_uuid = row[11], kind = row[4], highlight = row[5],
                 chapter = row[6], pageno = row[7], annotation_datetime = row[8],
                 model = row[9], created_at = tonumber(row[10]), messages = {},
             }

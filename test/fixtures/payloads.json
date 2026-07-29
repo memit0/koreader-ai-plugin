@@ -1,0 +1,75 @@
+{
+  "pair": {
+    "code": "ABC234",
+    "device_name": "TestReader",
+    "device_uuid": "9a19fb7767ce9d98"
+  },
+  "sync": [
+    {
+      "books": [
+        {
+          "authors": "Kant",
+          "md5": "d41d8cd98f00b204",
+          "title": "Critique of Pure Reason",
+          "uuid": "9a19fb7767ce9d98:book:1"
+        }
+      ],
+      "items": [
+        {
+          "book_uuid": "9a19fb7767ce9d98:book:1",
+          "chapter": "Chapter 1",
+          "datetime": "2026-07-29 10:00:00",
+          "note": "worth rereading",
+          "pageno": 42,
+          "text": "the categorical imperative",
+          "uuid": "9a19fb7767ce9d98:item:1"
+        }
+      ]
+    },
+    {
+      "books": [
+        {
+          "authors": "Kant",
+          "md5": "d41d8cd98f00b204",
+          "title": "Critique of Pure Reason",
+          "uuid": "9a19fb7767ce9d98:book:1"
+        }
+      ],
+      "conversations": [
+        {
+          "annotation_datetime": "2026-07-29 10:00:00",
+          "book_uuid": "9a19fb7767ce9d98:book:1",
+          "chapter": "Chapter 1",
+          "created_at": 1785342789,
+          "highlight": "the categorical imperative",
+          "kind": "explain",
+          "messages": [
+            {
+              "content": "the categorical imperative",
+              "ordinal": 1,
+              "role": "user"
+            },
+            {
+              "content": "Kant argues that duty precedes consequence.",
+              "ordinal": 2,
+              "role": "assistant"
+            },
+            {
+              "content": "why does he think that?",
+              "ordinal": 3,
+              "role": "user"
+            },
+            {
+              "content": "Because reason alone can ground obligation.",
+              "ordinal": 4,
+              "role": "assistant"
+            }
+          ],
+          "model": "google/gemini-2.5-flash-lite",
+          "pageno": 42,
+          "uuid": "9a19fb7767ce9d98:conversation:1"
+        }
+      ]
+    }
+  ]
+}
