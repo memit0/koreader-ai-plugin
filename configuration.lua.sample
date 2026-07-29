@@ -1,8 +1,23 @@
+-- configuration.lua is entirely optional. The API key is normally read from a
+-- .env file (see .env.sample); everything set here overrides both .env and the
+-- built-in defaults.
+
 local CONFIGURATION = {
-    api_key = "YOUR_API_KEY",
-    model = "gpt-4o-mini",
-    base_url = "https://api.openai.com/v1/chat/completions",
+    -- "openrouter" (default) or "openai". Only needed to force a provider when
+    -- keys for both are present in .env.
+    -- provider = "openrouter",
+
+    -- Overrides OPENROUTER_API_KEY / OPENAI_API_KEY from .env.
+    -- api_key = "YOUR_API_KEY",
+
+    -- Overrides OPENROUTER_MODEL / OPENAI_MODEL from .env.
+    -- model = "google/gemini-2.5-flash-lite",
+
+    -- Any endpoint speaking the OpenAI chat-completions dialect, e.g. Ollama.
+    -- base_url = "https://openrouter.ai/api/v1/chat/completions",
+
     additional_parameters = {},
+
     features = {
         -- Optional. Replaces the built-in instructions used by the "Explain"
         -- button, if you want the explanations tailored differently.

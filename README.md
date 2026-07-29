@@ -10,23 +10,27 @@ Get [KoReader](https://github.com/koreader/koreader) installed on your e-reader.
 
 If you want to do this on a Kindle, you are going to have to jailbreak it. I recommend following [this guide](https://www.mobileread.com/forums/showthread.php?t=320564) to jailbreak your Kindle.
 
-Acquire an API key from an API account on OpenAI (with credits). Once you have your API key, create a `configuration.lua` file in the following structure or modify and rename the `configuration.lua.sample` file:
+Get an [OpenRouter API key](https://openrouter.ai/keys) and put it in a `.env` file inside the `askgpt.koplugin` directory — copy `.env.sample` and fill in your key:
 
-> **Note:** The prior `api_key.lua` style configuration is deprecated. Please use the new `configuration.lua` style configuration.
-
-```lua
-local CONFIGURATION = {
-    api_key = "YOUR_API_KEY",
-    model = "gpt-4o-mini",
-    base_url = "https://api.openai.com/v1/chat/completions"
-}
-
-return CONFIGURATION
+```sh
+OPENROUTER_API_KEY=sk-or-v1-...
 ```
 
-In this new format you can specify the model you want to use, the API key, and the base URL for the API. The model is optional and defaults to `gpt-4o-mini`. The base URL is also optional and defaults to `https://api.openai.com/v1/chat/completions`. This is useful if you want to use a different model or a different API endpoint (such as via Azure or another LLM that uses the same API style as OpenAI).
+That is the whole setup. The plugin defaults to `google/gemini-2.5-flash-lite`, which is cheap, fast and more than capable enough for explaining a paragraph of prose. To use a different one, pick any id from [openrouter.ai/models](https://openrouter.ai/models) and add:
 
-For example, you could use a local API via a tool like [Ollama](https://ollama.com/blog/openai-compatibility) and set the base url to point to your computers IP address and port.
+```sh
+OPENROUTER_MODEL=google/gemini-2.5-flash
+```
+
+> **Note:** `.env` is gitignored, so your key stays out of version control. Edits to it are picked up when KOReader restarts.
+
+### Using OpenAI instead
+
+Set `OPENAI_API_KEY` in `.env` rather than `OPENROUTER_API_KEY` and the plugin talks to OpenAI directly, defaulting to `gpt-4o-mini`. If both keys are present, OpenRouter wins; set `provider = "openai"` in `configuration.lua` to force the other way.
+
+### Other endpoints
+
+`configuration.lua` is optional and overrides both `.env` and the defaults — copy `configuration.lua.sample` if you need it. Anything speaking the OpenAI chat-completions dialect works, so you can point the plugin at a local model served by [Ollama](https://ollama.com/blog/openai-compatibility):
 
 ```lua
 local CONFIGURATION = {
@@ -39,6 +43,8 @@ local CONFIGURATION = {
 return CONFIGURATION
 ```
 
+> **Note:** The prior `api_key.lua` style configuration is deprecated. Use `.env`, or `configuration.lua` for the settings above.
+
 ## Other Features
 
 Additionally, as other extra features are rolled out, they will be optional and can be set in the `features` table in the `configuration.lua` file.
@@ -49,12 +55,12 @@ The **Explain** button sends a built-in set of instructions asking for a plain-l
 
 ```lua
 local CONFIGURATION = {
-    api_key = "YOUR_API_KEY",
-    model = "gpt-4o-mini",
     features = {
         explain_prompt = "Explain the highlighted passage to a ten year old, in two sentences."
     }
 }
+
+return CONFIGURATION
 ```
 
 ### Translation
@@ -65,13 +71,12 @@ By setting the `translate_to` parameter, an **AI Translate** button is added to 
 
 ```lua
 local CONFIGURATION = {
-    api_key = "YOUR_API_KEY",
-    model = "gpt-4o-mini",
-    base_url = "https://api.openai.com/v1/chat/completions",
     features = {
         translate_to = "French"
     }
 }
+
+return CONFIGURATION
 ```
 
 ## Installation
@@ -82,7 +87,7 @@ If you clone this project, you should be able to put the directory, `askgpt.kopl
 
 To use AskGPT, simply highlight the text you want explained and select "Explain" from the highlight menu. The plugin sends the highlighted text to the ChatGPT API and shows the explanation in a pop-up window — there is nothing to type. From that window you can use "Ask Another Question" if you want to follow up on the passage.
 
-If something goes wrong (missing API key, no credit on the account, no network), the plugin now tells you what happened instead of closing KOReader.
+If something goes wrong (missing API key, no credit on the account, no network), the plugin tells you what happened instead of closing KOReader. Errors reported by the API — an invalid key, an unknown model id, an exhausted balance — are shown verbatim, so a typo'd `OPENROUTER_MODEL` says so.
 
 ## Troubleshooting
 

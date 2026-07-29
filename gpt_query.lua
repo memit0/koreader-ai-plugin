@@ -4,6 +4,8 @@ local ltn12 = require("ltn12")
 local json = require("json")
 local socketutil = require("socketutil")
 
+local Env = require("env")
+
 local api_key = nil
 local CONFIGURATION = nil
 
@@ -27,6 +29,68 @@ end
 local BLOCK_TIMEOUT = 30
 local TOTAL_TIMEOUT = 120
 
+-- Both endpoints speak the OpenAI chat-completions dialect, so the only thing
+-- that differs is where the key comes from and what a sensible model is called.
+local PROVIDERS = {
+  openrouter = {
+    env_key = "OPENROUTER_API_KEY",
+    env_model = "OPENROUTER_MODEL",
+    base_url = "https://openrouter.ai/api/v1/chat/completions",
+    -- Cheap, fast and more than good enough to explain a paragraph of prose.
+    model = "google/gemini-2.5-flash-lite",
+  },
+  openai = {
+    env_key = "OPENAI_API_KEY",
+    env_model = "OPENAI_MODEL",
+    base_url = "https://api.openai.com/v1/chat/completions",
+    model = "gpt-4o-mini",
+  },
+}
+
+local PROVIDER_ORDER = { "openrouter", "openai" }
+
+local PLACEHOLDER_KEYS = {
+  ["YOUR_API_KEY"] = true,
+  ["YOUR_OPENROUTER_API_KEY"] = true,
+}
+
+local function configuredKey()
+  local key = CONFIGURATION and CONFIGURATION.api_key
+  if not key or key == "" or PLACEHOLDER_KEYS[key] then return nil end
+  return key
+end
+
+local function resolveProvider()
+  local name = CONFIGURATION and CONFIGURATION.provider
+  if name and PROVIDERS[name] then
+    return PROVIDERS[name]
+  end
+  -- A key in configuration.lua predates OpenRouter support, so honour the
+  -- endpoint those setups have always used.
+  if configuredKey() then
+    return PROVIDERS.openai
+  end
+  for _, candidate in ipairs(PROVIDER_ORDER) do
+    if Env.get(PROVIDERS[candidate].env_key) then
+      return PROVIDERS[candidate]
+    end
+  end
+  return PROVIDERS.openrouter
+end
+
+-- Precedence is the same for every setting: configuration.lua, then .env,
+-- then the provider's default.
+local function resolveSettings()
+  local provider = resolveProvider()
+  local api_key_value = configuredKey() or Env.get(provider.env_key) or api_key
+  local api_url = (CONFIGURATION and CONFIGURATION.base_url) or provider.base_url
+  local model = (CONFIGURATION and CONFIGURATION.model)
+    or Env.get(provider.env_model)
+    or Env.get("AI_MODEL")
+    or provider.model
+  return provider, api_key_value, api_url, model
+end
+
 -- Turn whatever the API sent back into something worth showing the user.
 local function describeApiError(code, body)
   local ok, decoded = pcall(json.decode, body)
@@ -42,13 +106,12 @@ end
 -- Returns the assistant's reply, or nil plus an error message.
 -- It never raises: an uncaught error here takes the whole reader down with it.
 local function queryChatGPT(message_history)
-  -- Use api_key from CONFIGURATION or fallback to the api_key module
-  local api_key_value = CONFIGURATION and CONFIGURATION.api_key or api_key
-  local api_url = CONFIGURATION and CONFIGURATION.base_url or "https://api.openai.com/v1/chat/completions"
-  local model = CONFIGURATION and CONFIGURATION.model or "gpt-4o-mini"
+  local provider, api_key_value, api_url, model = resolveSettings()
 
-  if not api_key_value or api_key_value == "" then
-    return nil, "No API key found. Create a configuration.lua file in the askgpt.koplugin directory (see configuration.lua.sample)."
+  if not api_key_value then
+    return nil, string.format(
+      "No API key found. Put %s=... in a .env file in the askgpt.koplugin directory, "
+        .. "or set api_key in configuration.lua.", provider.env_key)
   end
 
   -- Determine whether to use http or https
@@ -78,6 +141,12 @@ local function queryChatGPT(message_history)
     ["Content-Length"] = tostring(#requestBody),
     ["Authorization"] = "Bearer " .. api_key_value,
   }
+
+  -- Optional attribution headers, used by OpenRouter for its app rankings
+  if api_url:find("openrouter.ai", 1, true) then
+    headers["HTTP-Referer"] = "https://github.com/drewbaumann/AskGPT"
+    headers["X-Title"] = "AskGPT for KOReader"
+  end
 
   local responseBody = {}
 
