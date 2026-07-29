@@ -1,3 +1,9 @@
+local http = require("socket.http")
+local https = require("ssl.https")
+local ltn12 = require("ltn12")
+local json = require("json")
+local socketutil = require("socketutil")
+
 local api_key = nil
 local CONFIGURATION = nil
 
@@ -17,17 +23,33 @@ else
   print("configuration.lua not found, skipping...")
 end
 
--- Define your queryChatGPT function
-local https = require("ssl.https")
-local http = require("socket.http")
-local ltn12 = require("ltn12")
-local json = require("json")
+-- The request blocks the UI, so cap how long we are willing to wait.
+local BLOCK_TIMEOUT = 30
+local TOTAL_TIMEOUT = 120
 
+-- Turn whatever the API sent back into something worth showing the user.
+local function describeApiError(code, body)
+  local ok, decoded = pcall(json.decode, body)
+  if ok and type(decoded) == "table" and type(decoded.error) == "table" and decoded.error.message then
+    return decoded.error.message
+  end
+  if body and body ~= "" then
+    return string.format("HTTP %s: %s", tostring(code), body:sub(1, 300))
+  end
+  return "HTTP " .. tostring(code)
+end
+
+-- Returns the assistant's reply, or nil plus an error message.
+-- It never raises: an uncaught error here takes the whole reader down with it.
 local function queryChatGPT(message_history)
   -- Use api_key from CONFIGURATION or fallback to the api_key module
   local api_key_value = CONFIGURATION and CONFIGURATION.api_key or api_key
   local api_url = CONFIGURATION and CONFIGURATION.base_url or "https://api.openai.com/v1/chat/completions"
   local model = CONFIGURATION and CONFIGURATION.model or "gpt-4o-mini"
+
+  if not api_key_value or api_key_value == "" then
+    return nil, "No API key found. Create a configuration.lua file in the askgpt.koplugin directory (see configuration.lua.sample)."
+  end
 
   -- Determine whether to use http or https
   local request_library = api_url:match("^https://") and https or http
@@ -46,30 +68,57 @@ local function queryChatGPT(message_history)
   end
 
   -- Encode the request body as JSON
-  local requestBody = json.encode(requestBodyTable)
+  local encoded, requestBody = pcall(json.encode, requestBodyTable)
+  if not encoded then
+    return nil, "Could not encode the request: " .. tostring(requestBody)
+  end
 
   local headers = {
     ["Content-Type"] = "application/json",
+    ["Content-Length"] = tostring(#requestBody),
     ["Authorization"] = "Bearer " .. api_key_value,
   }
 
   local responseBody = {}
 
   -- Make the HTTP/HTTPS request
-  local res, code, responseHeaders = request_library.request {
+  socketutil:set_timeout(BLOCK_TIMEOUT, TOTAL_TIMEOUT)
+  local ok, res, code = pcall(request_library.request, {
     url = api_url,
     method = "POST",
     headers = headers,
     source = ltn12.source.string(requestBody),
-    sink = ltn12.sink.table(responseBody),
-  }
+    sink = socketutil.table_sink(responseBody),
+  })
+  socketutil:reset_timeout()
 
-  if code ~= 200 then
-    error("Error querying ChatGPT API: " .. code)
+  if not ok then
+    return nil, "Could not reach " .. api_url .. ": " .. tostring(res)
+  end
+  if not res then
+    -- LuaSocket/LuaSec signal transport failures as nil plus a message
+    return nil, "Could not reach " .. api_url .. ": " .. tostring(code)
   end
 
-  local response = json.decode(table.concat(responseBody))
-  return response.choices[1].message.content
+  local body = table.concat(responseBody)
+  if code ~= 200 then
+    return nil, describeApiError(code, body)
+  end
+
+  local decoded, response = pcall(json.decode, body)
+  if not decoded or type(response) ~= "table" then
+    return nil, "Could not understand the API response."
+  end
+  if type(response.error) == "table" and response.error.message then
+    return nil, response.error.message
+  end
+
+  local choice = response.choices and response.choices[1]
+  if not (choice and choice.message and choice.message.content) then
+    return nil, "The API did not return an answer."
+  end
+
+  return choice.message.content
 end
 
 return queryChatGPT

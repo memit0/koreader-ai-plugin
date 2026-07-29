@@ -1,6 +1,6 @@
 # AskGPT: ChatGPT Highlight Plugin for KOReader
 
-Introducing AskGPT, a new plugin for KOReader that allows you to ask questions about the parts of the book you're reading and receive insightful answers from ChatGPT, an AI language model. With AskGPT, you can have a more interactive and engaging reading experience, and gain a deeper understanding of the content.
+Introducing AskGPT, a new plugin for KOReader that explains the parts of the book you're reading using ChatGPT, an AI language model. Highlight a passage, tap **Explain**, and you get the passage in plain language along with the background you need to follow it — no question to type. With AskGPT, you can have a more interactive and engaging reading experience, and gain a deeper understanding of the content.
 
 ## Getting Started
 
@@ -43,12 +43,25 @@ return CONFIGURATION
 
 Additionally, as other extra features are rolled out, they will be optional and can be set in the `features` table in the `configuration.lua` file.
 
+### Custom explanation prompt
+
+The **Explain** button sends a built-in set of instructions asking for a plain-language explanation with the necessary background and context. If you want something different, set `explain_prompt` in the `features` table and it will be used instead.
+
+```lua
+local CONFIGURATION = {
+    api_key = "YOUR_API_KEY",
+    model = "gpt-4o-mini",
+    features = {
+        explain_prompt = "Explain the highlighted passage to a ten year old, in two sentences."
+    }
+}
+```
 
 ### Translation
 
 To enable translation, you can set the `translate_to` parameter in the `features` table. For example, if you want to translate the text to French, you can set the `translate_to` parameter to `"French"`.
 
-By setting the `translate_to` parameter, you can have the plugin translate the text to the language you specify. This is useful if you are reading a book in a language you are not fluent in and want to understand a chunk of text in a language you are more comfortable with.
+By setting the `translate_to` parameter, an **AI Translate** button is added to the highlight menu alongside **Explain**. This is useful if you are reading a book in a language you are not fluent in and want to understand a chunk of text in a language you are more comfortable with.
 
 ```lua
 local CONFIGURATION = {
@@ -67,7 +80,13 @@ If you clone this project, you should be able to put the directory, `askgpt.kopl
 
 ## How To Use
 
-To use AskGPT, simply highlight the text that you want to ask a question about, and select "Ask ChatGPT" from the menu. The plugin will then send your highlighted text to the ChatGPT API, and display the answer to your question in a pop-up window.
+To use AskGPT, simply highlight the text you want explained and select "Explain" from the highlight menu. The plugin sends the highlighted text to the ChatGPT API and shows the explanation in a pop-up window — there is nothing to type. From that window you can use "Ask Another Question" if you want to follow up on the passage.
+
+If something goes wrong (missing API key, no credit on the account, no network), the plugin now tells you what happened instead of closing KOReader.
+
+## Troubleshooting
+
+**The "Explain" button doesn't appear in the highlight menu.** KOReader only discovers plugins in directories whose name ends in `.koplugin`, so the directory must be named exactly `askgpt.koplugin` — a plain `git clone` gives you `AskGPT` or `koreader-ai-plugin`, which is silently ignored. Check that it is in `koreader/plugins/`, and that "AskGPT" is listed and ticked under Menu → Tools → More tools → Plugin management → User plugins. `koreader/crash.log` logs every directory that was scanned, and any plugin that failed to load.
 
 I hope you enjoy using this plugin and that it enhances your e-reading experience. If you have any feedback or suggestions, please let me know!
 

@@ -3,6 +3,14 @@ local CONFIGURATION = {
     model = "gpt-4o-mini",
     base_url = "https://api.openai.com/v1/chat/completions",
     additional_parameters = {},
+    features = {
+        -- Optional. Replaces the built-in instructions used by the "Explain"
+        -- button, if you want the explanations tailored differently.
+        -- explain_prompt = "Explain this passage to a ten year old.",
+
+        -- Optional. Adds an "AI Translate" button to the highlight menu.
+        -- translate_to = "French",
+    },
 }
 
 return CONFIGURATION
