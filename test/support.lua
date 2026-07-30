@@ -1,4 +1,4 @@
--- Shared KOReader stubs for the AskGPT tests. Real SQLite underneath (via
+-- Shared KOReader stubs for the Lunote tests. Real SQLite underneath (via
 -- sq3shim), everything else faked just enough to drive the plugin's own code.
 local HERE = debug.getinfo(1, "S").source:sub(2):match("^(.*)[/\\][^/\\]*$") or "."
 local SCRATCH = HERE .. "/tmp"
@@ -132,7 +132,7 @@ local modules = {
     ["ui/widget/titlebar"] = Widget:extend{ getHeight = function() return 1 end },
     ["ui/widget/verticalgroup"] = Widget:extend{},
     ["ffi/util"] = { template = function(s) return s end },
-    ["configuration"] = { api_key = "sk-test", model = "test-model", features = {} },
+    ["lunote_config"] = { api_key = "sk-test", model = "test-model", features = {} },
 }
 
 M.modules = modules
@@ -148,9 +148,9 @@ function M.reset()
     M.http.status, M.http.response = 200, {}
     M.http.sent, M.http.fail_after, M.http.calls, M.http.transport = {}, nil, 0, nil
     M.shown, M.ticks, M.events = {}, {}, {}
-    modules["configuration"].features = {}
-    for _, name in ipairs({ "history", "sync", "annotations", "dialogs", "env",
-                            "gpt_query", "history_browser", "main", "update_checker" }) do
+    modules["lunote_config"].features = {}
+    for _, name in ipairs({ "lunote_history", "lunote_sync", "lunote_annotations", "lunote_dialogs", "lunote_env",
+                            "lunote_query", "lunote_history_browser", "main", "lunote_update_checker" }) do
         package.loaded[name] = nil
     end
 end

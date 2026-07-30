@@ -40,8 +40,8 @@ local function encode(value, indent)
 end
 
 ko.reset()
-local History = require("history")
-local Sync = require("sync")
+local History = require("lunote_history")
+local Sync = require("lunote_sync")
 
 local BOOK = { title = "Critique of Pure Reason", authors = "Kant",
                md5 = "d41d8cd98f00b204", file = "/books/kant.epub" }

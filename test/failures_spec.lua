@@ -44,7 +44,7 @@ local cases = {
 
 for _, case in ipairs(cases) do
     ko.reset()
-    local History = require("history")
+    local History = require("lunote_history")
     local ui = makeUI()
     local plugin = dofile(ko.PLUGIN .. "/main.lua")
     plugin:new{ ui = ui, view = {}, document = ui.document }
@@ -57,7 +57,7 @@ for _, case in ipairs(cases) do
     end
 
     local ok, err = pcall(function()
-        ui.highlight._highlight_buttons["askgpt_01_explain"](ui.highlight, nil).callback()
+        ui.highlight._highlight_buttons["lunote_01_explain"](ui.highlight, nil).callback()
         ko.drain()
     end)
     check(case.name, ok, err)
@@ -75,12 +75,12 @@ end
 
 print("\nstore failures degrade instead of raising")
 ko.reset()
-local History = require("history")
+local History = require("lunote_history")
 -- Point the store at a path that cannot be created
 local Broken = setmetatable({}, { __index = History })
 ko.modules["datastorage"].getSettingsDir = function() return "/nonexistent/nope" end
-package.loaded["history"] = nil
-local BrokenHistory = require("history")
+package.loaded["lunote_history"] = nil
+local BrokenHistory = require("lunote_history")
 local ok, err = pcall(function()
     return BrokenHistory.startConversation{
         book = { title = "t", authors = "a", md5 = "m" },

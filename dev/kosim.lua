@@ -5,7 +5,7 @@ The plugin's own modules are loaded **unmodified** and everything that carries
 real risk is real: real SQLite, real HTTP to OpenRouter, real HTTP to the sync
 endpoint, real annotation persistence. Only KOReader's widget layer is replaced,
 with stubs faithful enough that the widgets still get constructed — so a mistake
-in ChatGPTViewer:init() still surfaces here rather than on the device.
+in ConversationViewer:init() still surfaces here rather than on the device.
 
 What this cannot tell you: how anything looks on e-ink, and whether
 saveHighlight() finds positions in your particular document format. Those need
@@ -182,7 +182,7 @@ local UIManager = {
 function M.render(widget)
     if widget.__kind == "InfoMessage" then
         emit("info", "  » " .. tostring(widget.text))
-    elseif widget.__kind == "ChatGPTViewer" then
+    elseif widget.__kind == "ConversationViewer" then
         emit("viewer", box(tostring(widget.title or "Viewer"), tostring(widget.text or "")))
         M.viewer = widget
     elseif widget.__kind == "Menu" then
@@ -218,7 +218,7 @@ function M.drain()
 end
 
 local InfoMessage = Widget:extend{ __kind = "InfoMessage" }
-local ChatGPTViewerStub = Widget:extend{ __kind = "ChatGPTViewer" }
+local ConversationViewerStub = Widget:extend{ __kind = "ConversationViewer" }
 local MenuStub = Widget:extend{ __kind = "Menu" }
 local ConfirmBox = Widget:extend{ __kind = "ConfirmBox" }
 
@@ -232,10 +232,10 @@ function InputDialog:onShowKeyboard() end
 
 -- Mock LLM ------------------------------------------------------------------
 -- On by default, so the simulator works with no API key, no network and no
--- spend. `mock off` in the console (or ASKGPT_SIM_MOCK=0) sends the real thing.
+-- spend. `mock off` in the console (or LUNOTE_SIM_MOCK=0) sends the real thing.
 -- Only completion requests are intercepted; sync traffic always goes out.
 
-M.mock_llm = os.getenv("ASKGPT_SIM_MOCK") ~= "0"
+M.mock_llm = os.getenv("LUNOTE_SIM_MOCK") ~= "0"
 
 function M.fakeCompletion(request)
     local answer = table.concat({
@@ -336,7 +336,7 @@ modules = {
         runWhenOnline = function(_, callback) callback() end,
     },
 
-    -- Widget dependencies of the real ChatGPTViewer, stubbed but constructed
+    -- Widget dependencies of the real ConversationViewer, stubbed but constructed
     ["ui/bidi"] = { flipDirectionIfMirroredUILayout = function(d) return d end },
     ["ffi/blitbuffer"] = { COLOR_BLACK = 0, COLOR_WHITE = 1 },
     ["ui/widget/buttontable"] = Widget:extend{
@@ -369,7 +369,7 @@ modules = {
 
 M.modules = modules
 
--- The plugin's own ChatGPTViewer is real code, so load it and keep its text
+-- The plugin's own ConversationViewer is real code, so load it and keep its text
 -- while presenting it to the console as a viewer.
 local realRequire = require
 _G.require = function(name)
@@ -377,8 +377,8 @@ _G.require = function(name)
     return realRequire(name)
 end
 
-local RealViewer = realRequire("chatgptviewer")
-modules["chatgptviewer"] = setmetatable({
+local RealViewer = realRequire("lunote_viewer")
+modules["lunote_viewer"] = setmetatable({
     new = function(_, options)
         -- Construct the real widget so its init() is genuinely exercised, then
         -- hand the console something it can print.
@@ -387,9 +387,9 @@ modules["chatgptviewer"] = setmetatable({
             onAskQuestion = options.onAskQuestion,
         })
         if not ok then
-            emit("error", "  !! ChatGPTViewer:init() raised: " .. tostring(err))
+            emit("error", "  !! ConversationViewer:init() raised: " .. tostring(err))
         end
-        local widget = ChatGPTViewerStub:new{
+        local widget = ConversationViewerStub:new{
             title = options.title, text = options.text,
             onAskQuestion = options.onAskQuestion,
         }
@@ -404,8 +404,8 @@ modules["chatgptviewer"] = setmetatable({
 function M.reset()
     M.output, M.stack, M.ticks, M.events = {}, {}, {}, {}
     M.viewer, M.menu, M.dialog = nil, nil, nil
-    for _, name in ipairs({ "history", "sync", "annotations", "dialogs", "env",
-                            "gpt_query", "history_browser", "main", "update_checker" }) do
+    for _, name in ipairs({ "lunote_history", "lunote_sync", "lunote_annotations", "lunote_dialogs", "lunote_env",
+                            "lunote_query", "lunote_history_browser", "main", "lunote_update_checker" }) do
         package.loaded[name] = nil
     end
 end

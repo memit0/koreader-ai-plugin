@@ -19,8 +19,8 @@ end
 
 print("pairing")
 ko.reset()
-local History = require("history")
-local Sync = require("sync")
+local History = require("lunote_history")
+local Sync = require("lunote_sync")
 
 check("not configured before pairing", Sync.isConfigured() == false)
 ko.http.response = { token = "device-token-xyz" }
@@ -44,8 +44,8 @@ check("local HTTP endpoint stays supported", ko.http.transport == "http", ko.htt
 
 print("\nfull sync")
 ko.reset()
-History = require("history")
-Sync = require("sync")
+History = require("lunote_history")
+Sync = require("lunote_sync")
 seed(History, 12, 3)
 History.setState("token", "t")
 check("15 records outstanding", History.countDirty() == 15, History.countDirty())
@@ -86,8 +86,8 @@ check("no extra requests made", #ko.http.sent == before, #ko.http.sent)
 
 print("\nbatch size bounds each request")
 ko.reset()
-History = require("history")
-Sync = require("sync")
+History = require("lunote_history")
+Sync = require("lunote_sync")
 seed(History, 60, 0)
 History.setState("token", "t")
 ko.http.response = { accepted = 25 }
@@ -101,8 +101,8 @@ check("batch sizes are 25/25/10", sizes[1] == 25 and sizes[2] == 25 and sizes[3]
 
 print("\ninterrupted sync resumes without duplicates")
 ko.reset()
-History = require("history")
-Sync = require("sync")
+History = require("lunote_history")
+Sync = require("lunote_sync")
 seed(History, 60, 0)
 History.setState("token", "t")
 ko.http.response = { accepted = 25 }
@@ -122,8 +122,8 @@ check("everything is clean now", History.countDirty() == 0, History.countDirty()
 
 print("\nfailure handling")
 ko.reset()
-History = require("history")
-Sync = require("sync")
+History = require("lunote_history")
+Sync = require("lunote_sync")
 seed(History, 5, 0)
 check("sync without a token is refused, not raised", (function()
     local message

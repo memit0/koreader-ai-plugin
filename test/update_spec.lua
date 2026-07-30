@@ -3,7 +3,7 @@ local ko = dofile(here .. "/support.lua")
 local check = ko.check
 
 ko.reset()
-local isNewer = require("update_checker").isNewer
+local isNewer = require("lunote_update_checker").isNewer
 
 check("1.10 is newer than 1.9", isNewer("v1.10.0", "1.9.0"))
 check("patch release is newer", isNewer("v1.1.1", "1.1.0"))

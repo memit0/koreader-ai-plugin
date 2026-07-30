@@ -1,23 +1,23 @@
-local ChatGPTViewer = require("chatgptviewer")
+local ConversationViewer = require("lunote_viewer")
 local UIManager = require("ui/uimanager")
 local InfoMessage = require("ui/widget/infomessage")
 local _ = require("gettext")
 
-local queryChatGPT = require("gpt_query")
-local Annotations = require("annotations")
-local History = require("history")
+local queryModel = require("lunote_query")
+local Annotations = require("lunote_annotations")
+local History = require("lunote_history")
 
 local CONFIGURATION = nil
 
-local success, result = pcall(function() return require("configuration") end)
+local success, result = pcall(function() return require("lunote_config") end)
 if success then
   CONFIGURATION = result
 else
-  print("configuration.lua not found, skipping...")
+  print("lunote_config.lua not found, skipping...")
 end
 
 -- What the assistant is told to do with a highlight. Override it by setting
--- features.explain_prompt in configuration.lua.
+-- features.explain_prompt in lunote_config.lua.
 local DEFAULT_EXPLAIN_PROMPT = [[
 You are helping someone understand the book they are reading. They have highlighted a passage.
 
@@ -53,7 +53,7 @@ local function runQuery(loading_text, message_history, on_answer, on_error)
   UIManager:forceRePaint()
 
   UIManager:nextTick(function()
-    local answer, err, model = queryChatGPT(message_history)
+    local answer, err, model = queryModel(message_history)
     UIManager:close(loading)
 
     if not answer then
@@ -88,7 +88,7 @@ local function createResultText(highlightedText, message_history)
     elseif i == 3 then
       result_text = result_text .. message.content .. "\n\n"
     else
-      result_text = result_text .. _("ChatGPT: ") .. message.content .. "\n\n"
+      result_text = result_text .. _("Reply: ") .. message.content .. "\n\n"
     end
   end
 
@@ -98,26 +98,26 @@ end
 -- `conversation_id` is nil when the exchange was not recorded (a failed write, or
 -- a translation with logging off); follow-ups then simply are not recorded either.
 local function showViewer(viewer_title, highlightedText, message_history, conversation_id)
-  local function handleNewQuestion(chatgpt_viewer, question)
+  local function handleNewQuestion(conversation_viewer, question)
     table.insert(message_history, {
       role = "user",
       content = question,
     })
 
-    runQuery(_("Asking ChatGPT…"), message_history, function(answer)
+    runQuery(_("Asking…"), message_history, function(answer)
       if conversation_id then
         History.appendMessages(conversation_id, {
           { role = "user", content = question },
           { role = "assistant", content = answer },
         })
       end
-      chatgpt_viewer:update(createResultText(highlightedText, message_history))
+      conversation_viewer:update(createResultText(highlightedText, message_history))
     end, function()
       table.remove(message_history)
     end)
   end
 
-  UIManager:show(ChatGPTViewer:new {
+  UIManager:show(ConversationViewer:new {
     title = viewer_title,
     text = createResultText(highlightedText, message_history),
     onAskQuestion = handleNewQuestion,
@@ -141,7 +141,7 @@ local function explainHighlight(ui, highlightedText, index)
     },
   }
 
-  runQuery(_("Asking ChatGPT…"), message_history, function(answer, model)
+  runQuery(_("Asking…"), message_history, function(answer, model)
     -- Attach to the book's own annotation first, so the explanation shows up in
     -- Bookmarks next to the highlight and the user's notes.
     local annotation

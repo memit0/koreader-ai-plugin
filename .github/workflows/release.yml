@@ -16,10 +16,10 @@ jobs:
       - run: ./test/run.sh
       - name: Package
         run: |
-          mkdir askgpt.koplugin
-          cp *.lua askgpt.koplugin/
-          cp LICENSE README.md askgpt.koplugin/
-          zip -r askgpt.koplugin.zip askgpt.koplugin
+          mkdir lunote.koplugin
+          cp *.lua lunote.koplugin/
+          cp .env.sample lunote_config.lua.sample LICENSE README.md lunote.koplugin/
+          zip -r lunote.koplugin.zip lunote.koplugin
       - uses: softprops/action-gh-release@v2
         with:
-          files: askgpt.koplugin.zip
+          files: lunote.koplugin.zip

@@ -1,4 +1,4 @@
--- configuration.lua is entirely optional. The API key is normally read from a
+-- lunote_config.lua is entirely optional. The API key is normally read from a
 -- .env file (see .env.sample); everything set here overrides both .env and the
 -- built-in defaults.
 

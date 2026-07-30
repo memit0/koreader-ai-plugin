@@ -10,7 +10,7 @@ in front of a one-tap Explain. We mirror its append semantics and write the
 annotation directly instead.
 ]]
 local Event = require("ui/event")
-local History = require("history")
+local History = require("lunote_history")
 local logger = require("logger")
 
 local Annotations = {}
@@ -75,7 +75,7 @@ function Annotations.saveToBook(ui, index, explanation)
     end)
 
     if not ok then
-        logger.warn("AskGPT annotations:", tostring(result))
+        logger.warn("Lunote annotations:", tostring(result))
         return nil
     end
     return result
@@ -88,7 +88,7 @@ function Annotations.mirror(ui)
         if not (ui and ui.annotation and ui.annotation.annotations) then return end
         History.mirrorAnnotations(Annotations.getBook(ui), ui.annotation.annotations)
     end)
-    if not ok then logger.warn("AskGPT annotations:", tostring(err)) end
+    if not ok then logger.warn("Lunote annotations:", tostring(err)) end
 end
 
 return Annotations

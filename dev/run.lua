@@ -1,14 +1,14 @@
 --[[--
 Interactive driver for the KOReader simulator. See dev/README.md.
 
-    ./dev/askgpt-sim                 interactive
-    ./dev/askgpt-sim dev/scripts/smoke.txt   run a script
+    ./dev/lunote-sim                 interactive
+    ./dev/lunote-sim dev/scripts/smoke.txt   run a script
 ]]
 local HERE = debug.getinfo(1, "S").source:sub(2):match("^(.*)[/\\][^/\\]*$") or "."
 local ko = dofile(HERE .. "/kosim.lua")
 
-local History = require("history")
-local Sync = require("sync")
+local History = require("lunote_history")
+local Sync = require("lunote_sync")
 
 local state = { book = nil, ui = nil, plugin = nil, instance = nil, selection = nil }
 
@@ -197,11 +197,11 @@ commands.explain = function(argument)
         say("nothing selected — try `select <text>` first")
         return
     end
-    pressHighlightButton("askgpt_01_explain", index)
+    pressHighlightButton("lunote_01_explain", index)
 end
 
 commands.translate = function()
-    pressHighlightButton("askgpt_02_translate", nil)
+    pressHighlightButton("lunote_02_translate", nil)
 end
 
 commands.ask = function(argument)
@@ -243,7 +243,7 @@ commands.menu = function()
     end
     local items = {}
     state.instance:addToMainMenu(items)
-    local entry = items.askgpt
+    local entry = items.lunote
     local widget = ko.modules["ui/widget/menu"]:new{
         title = entry.text,
         item_table = entry.sub_item_table,
@@ -304,7 +304,7 @@ commands.status = function()
     say("  database   " .. History.DB_PATH)
     say("  device     " .. tostring(History.getState("device_uuid")))
     say("  endpoint   " .. tostring(History.getState("endpoint")
-        or os.getenv("ASKGPT_SYNC_URL") or "(default)"))
+        or os.getenv("LUNOTE_SYNC_URL") or "(default)"))
     say("  paired     " .. (token and token ~= "" and ("yes (" .. token:sub(1, 8) .. "…)") or "no"))
     say("  last sync  " .. tostring(History.getState("last_sync_at") or "never"))
     say("  pending    " .. tostring(History.countDirty()))
@@ -352,8 +352,8 @@ commands.reset = function()
     os.execute("rm -rf " .. ko.DATA .. "/settings " .. ko.DATA .. "/sidecar")
     os.execute("mkdir -p " .. ko.DATA .. "/settings " .. ko.DATA .. "/sidecar")
     ko.reset()
-    History = require("history")
-    Sync = require("sync")
+    History = require("lunote_history")
+    Sync = require("lunote_sync")
     state.book, state.ui, state.instance = nil, nil, nil
     say("data directory wiped")
 end
@@ -396,10 +396,10 @@ if script then
     end
     file:close()
 else
-    io.write("KOReader simulator for AskGPT — `help` for commands, `quit` to leave\n")
+    io.write("KOReader simulator for Lunote — `help` for commands, `quit` to leave\n")
     commands.status()
     while not state.quit do
-        io.write("\naskgpt> ")
+        io.write("\nlunote> ")
         io.flush()
         local line = io.read("*l")
         if not line then break end

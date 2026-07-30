@@ -36,7 +36,7 @@ local function checkForUpdates()
     headers = {
       ["Accept"] = "application/vnd.github.v3+json",
       -- GitHub rejects API requests without a User-Agent
-      ["User-Agent"] = "askgpt.koplugin",
+      ["User-Agent"] = "lunote.koplugin",
     },
     sink = socketutil.table_sink(response_body),
   })

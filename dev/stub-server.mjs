@@ -6,9 +6,9 @@
  *     PORT=5000 node dev/stub-server.mjs
  *
  * Then in the simulator:
- *     ASKGPT_SYNC_URL=http://127.0.0.1:4000 ./dev/askgpt-sim
- *     askgpt> pair ANYCODE
- *     askgpt> sync
+ *     LUNOTE_SYNC_URL=http://127.0.0.1:4000 ./dev/lunote-sim
+ *     lunote> pair ANYCODE
+ *     lunote> sync
  *
  * It accepts any pairing code, prints every payload it receives, and keeps the
  * records in memory with the same (uuid) keying the real server uses — so
@@ -141,5 +141,5 @@ const server = createServer(async (request, response) => {
 server.listen(port, "127.0.0.1", () => {
   console.log(`stub sync server on http://127.0.0.1:${port}`);
   console.log("point the simulator at it:");
-  console.log(`  ASKGPT_SYNC_URL=http://127.0.0.1:${port} ./dev/askgpt-sim\n`);
+  console.log(`  LUNOTE_SYNC_URL=http://127.0.0.1:${port} ./dev/lunote-sim\n`);
 });

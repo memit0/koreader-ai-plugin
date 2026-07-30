@@ -5,7 +5,7 @@ terrible edit-test loop. This directory gives you two faster ones.
 
 | | Use it for | Speed |
 | --- | --- | --- |
-| **`./dev/askgpt-sim`** | Everything except pixels: the flows, the database, the annotation writes, the sync protocol | Instant |
+| **`./dev/lunote-sim`** | Everything except pixels: the flows, the database, the annotation writes, the sync protocol | Instant |
 | **KOReader desktop emulator** | How it actually looks and feels; whether `saveHighlight` finds positions in your document format | Slow, but still far quicker than a device |
 
 ## The simulator
@@ -43,17 +43,17 @@ apt-get install lua-socket lua-sec
 installed, but nothing needs them.
 
 ```sh
-./dev/askgpt-sim
+./dev/lunote-sim
 ```
 
-`LUA=/path/to/luajit ./dev/askgpt-sim` forces a particular interpreter. Lua 5.4
+`LUA=/path/to/luajit ./dev/lunote-sim` forces a particular interpreter. Lua 5.4
 will not work: the modules are built for the 5.1 ABI.
 
 ```
-askgpt> open
+lunote> open
 opened "Critique of Pure Reason" by Immanuel Kant  (0 annotation(s), md5 d98e6c84)
-askgpt> select Act only according to that maxim whereby you can at the same time
-askgpt> explain
+lunote> select Act only according to that maxim whereby you can at the same time
+lunote> explain
 pressing “Explain”
   » Asking ChatGPT…
 ┌──────────────────────────────────────────────────────────────┐
@@ -63,11 +63,11 @@ pressing “Explain”
 │                                                              │
 │ [the explanation]                                            │
 └──────────────────────────────────────────────────────────────┘
-askgpt> notes
+lunote> notes
    1. [Chapter 1 p.10] Act only according to that maxim…
-      | — AskGPT —
+      | — Lunote —
       | [the explanation]
-askgpt> sync
+lunote> sync
 ```
 
 `help` lists every command. The useful ones beyond the obvious:
@@ -88,7 +88,7 @@ sync. Real annotation persistence — highlights and notes are written to
 survive between runs and mirroring is worth exercising.
 
 Faked: KOReader's widget layer, though the stubs are faithful enough that the
-widgets still get *constructed* — a mistake in `ChatGPTViewer:init()` surfaces
+widgets still get *constructed* — a mistake in `ConversationViewer:init()` surfaces
 here rather than on the device. And the model, by default (see below).
 
 Not covered: how anything looks, e-ink refresh behaviour, and whether
@@ -102,14 +102,14 @@ Completion requests are intercepted by default and answered with obviously
 labelled placeholder text, so the simulator works with no API key, no network
 and no spend. Sync traffic is never intercepted.
 
-`mock off` in the console, or `ASKGPT_SIM_MOCK=0`, sends the real thing using
+`mock off` in the console, or `LUNOTE_SIM_MOCK=0`, sends the real thing using
 whatever `.env` you have configured.
 
 ### Testing sync without deploying anything
 
 ```sh
 node dev/stub-server.mjs                                  # terminal one
-ASKGPT_SYNC_URL=http://127.0.0.1:4000 ./dev/askgpt-sim    # terminal two
+LUNOTE_SYNC_URL=http://127.0.0.1:4000 ./dev/lunote-sim    # terminal two
 ```
 
 The stub accepts any pairing code, prints every payload it receives, and keys
@@ -117,15 +117,15 @@ records by `uuid` the way the real server does — so you can watch a re-sent ba
 correctly do nothing. `GET http://127.0.0.1:4000/` dumps what it holds.
 
 To go against the real thing instead, run the web app locally and point
-`ASKGPT_SYNC_URL` at `http://127.0.0.1:3000`.
+`LUNOTE_SYNC_URL` at `http://127.0.0.1:3000`.
 
 ### Scripts
 
 Non-interactive runs, good for a quick regression check by eye:
 
 ```sh
-./dev/askgpt-sim dev/scripts/smoke.txt
-./dev/askgpt-sim dev/scripts/sync.txt
+./dev/lunote-sim dev/scripts/smoke.txt
+./dev/lunote-sim dev/scripts/sync.txt
 ```
 
 ## The KOReader desktop emulator

@@ -1,5 +1,5 @@
 #!/bin/sh
-# Runs the AskGPT test suite.
+# Runs the Lunote test suite.
 #
 # Needs a Lua 5.1-compatible interpreter (LuaJIT preferred, as KOReader uses it)
 # plus luasql-sqlite3, which stands in for KOReader's lua-ljsqlite3.

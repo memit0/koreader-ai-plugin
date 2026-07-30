@@ -2,9 +2,9 @@
 Browsing UI for the stored explanations: books, then that book's conversations,
 then the transcript in the viewer the plugin already uses.
 ]]
-local ChatGPTViewer = require("chatgptviewer")
+local ConversationViewer = require("lunote_viewer")
 local ConfirmBox = require("ui/widget/confirmbox")
-local History = require("history")
+local History = require("lunote_history")
 local InfoMessage = require("ui/widget/infomessage")
 local Menu = require("ui/widget/menu")
 local UIManager = require("ui/uimanager")
@@ -38,7 +38,7 @@ local function showTranscript(conversation)
         end
     end
 
-    UIManager:show(ChatGPTViewer:new{
+    UIManager:show(ConversationViewer:new{
         title = conversation.chapter and conversation.chapter ~= "" and conversation.chapter
             or _("Explanation"),
         text = body,
@@ -110,7 +110,7 @@ function HistoryBrowser.show()
     end
 
     menu = Menu:new{
-        title = _("AskGPT history"),
+        title = _("Lunote history"),
         item_table = items,
         is_borderless = true,
         is_popout = false,

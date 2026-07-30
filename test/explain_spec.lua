@@ -38,7 +38,7 @@ local function loadPlugin(ui)
 end
 
 local function pressExplain(ui, index)
-    local fn = ui.highlight._highlight_buttons["askgpt_01_explain"]
+    local fn = ui.highlight._highlight_buttons["lunote_01_explain"]
     fn(ui.highlight, index).callback()
     ko.drain()
 end
@@ -50,7 +50,7 @@ end
 
 print("explain on a fresh selection")
 ko.reset()
-local History = require("history")
+local History = require("lunote_history")
 local ui = makeUI()
 local _, instance = loadPlugin(ui)
 answerOK()
@@ -85,7 +85,7 @@ check("answer stored", #messages == 2 and messages[2].content == ANSWER)
 
 print("\nexplain on an existing highlight keeps the user's note")
 ko.reset()
-History = require("history")
+History = require("lunote_history")
 local existing = { {
     datetime = "2026-07-01 09:00:00", text = "an earlier passage",
     note = "my own thought", chapter = "Ch 2", pageno = 7,
@@ -139,8 +139,8 @@ check("failed follow-up is removed before retry", not leaked)
 
 print("\nsave_to_notes = false keeps notes untouched")
 ko.reset()
-ko.modules["configuration"].features = { save_to_notes = false }
-History = require("history")
+ko.modules["lunote_config"].features = { save_to_notes = false }
+History = require("lunote_history")
 ui = makeUI()
 loadPlugin(ui)
 answerOK()
@@ -150,7 +150,7 @@ check("still recorded in history", #History.listConversations(1) == 1)
 
 print("\nAPI failure changes nothing")
 ko.reset()
-History = require("history")
+History = require("lunote_history")
 ui = makeUI()
 loadPlugin(ui)
 ko.http.status = 401
@@ -177,13 +177,13 @@ ko.reset()
 local plugin = dofile(ko.PLUGIN .. "/main.lua")
 local fm_instance = plugin:new{ ui = { menu = { registerToMainMenu = function() end } } }
 fm_instance:addToMainMenu(menu_items)
-check("menu entry added", menu_items.askgpt ~= nil)
-check("has browse and sync entries", #menu_items.askgpt.sub_item_table == 3,
-    menu_items.askgpt and #menu_items.askgpt.sub_item_table)
+check("menu entry added", menu_items.lunote ~= nil)
+check("has browse and sync entries", #menu_items.lunote.sub_item_table == 3,
+    menu_items.lunote and #menu_items.lunote.sub_item_table)
 
 print("\nmirroring on document close")
 ko.reset()
-History = require("history")
+History = require("lunote_history")
 ui = makeUI({
     { datetime = "2026-07-29 10:00:00", text = "passage", note = "mine", pageno = 3 },
 })

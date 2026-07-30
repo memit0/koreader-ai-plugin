@@ -1,5 +1,5 @@
 --[[--
-Local store for AskGPT: conversation transcripts, a mirror of the book's KOReader
+Local store for Lunote: conversation transcripts, a mirror of the book's KOReader
 annotations, and the outbox flags the sync uses.
 
 Two rules hold everywhere in here:
@@ -16,7 +16,7 @@ local logger = require("logger")
 
 local History = {}
 
-local DB_PATH = DataStorage:getSettingsDir() .. "/askgpt_history.sqlite3"
+local DB_PATH = DataStorage:getSettingsDir() .. "/lunote_history.sqlite3"
 local DB_SCHEMA_VERSION = 1
 
 -- Marks where the explanation begins inside an annotation's note. Mirroring
@@ -26,7 +26,7 @@ local DB_SCHEMA_VERSION = 1
 -- The label and the separator are kept apart deliberately: a note that had no
 -- user text starts at the label with no leading blank lines, and stripping has
 -- to recognise both forms. Searching for the label alone does that.
-History.AI_NOTE_MARKER = "— AskGPT —"
+History.AI_NOTE_MARKER = "— Lunote —"
 History.AI_NOTE_SEPARATOR = "\n\n" .. History.AI_NOTE_MARKER .. "\n"
 
 History.DB_PATH = DB_PATH
@@ -136,7 +136,7 @@ local function migrate(conn)
     local version = tonumber(conn:rowexec("PRAGMA user_version;")) or 0
     if version == DB_SCHEMA_VERSION then return end
     if version > DB_SCHEMA_VERSION then
-        logger.warn("AskGPT history: database is newer than this plugin, leaving it alone")
+        logger.warn("Lunote history: database is newer than this plugin, leaving it alone")
         return
     end
     -- Only one version so far; CREATE ... IF NOT EXISTS is the whole migration.
@@ -169,7 +169,7 @@ local function withConn(body)
     end)
     if conn then pcall(function() conn:close() end) end
     if not ok then
-        logger.warn("AskGPT history:", tostring(result))
+        logger.warn("Lunote history:", tostring(result))
         return nil, tostring(result)
     end
     return result

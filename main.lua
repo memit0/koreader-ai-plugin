@@ -5,17 +5,17 @@ local UIManager = require("ui/uimanager")
 local InfoMessage = require("ui/widget/infomessage")
 local _ = require("gettext")
 
-local Dialogs = require("dialogs")
-local Annotations = require("annotations")
-local History = require("history")
-local HistoryBrowser = require("history_browser")
-local Sync = require("sync")
-local UpdateChecker = require("update_checker")
+local Dialogs = require("lunote_dialogs")
+local Annotations = require("lunote_annotations")
+local History = require("lunote_history")
+local HistoryBrowser = require("lunote_history_browser")
+local Sync = require("lunote_sync")
+local UpdateChecker = require("lunote_update_checker")
 
 -- Not is_doc_only: the history browser has to work from the file manager too,
 -- where there is no document open. Anything reader-specific is guarded below.
-local AskGPT = InputContainer:new {
-  name = "askgpt",
+local Lunote = InputContainer:new {
+  name = "lunote",
 }
 
 -- Flag to ensure the update message is shown only once per session
@@ -30,7 +30,7 @@ end
 
 -- Grabs the selection, dismisses the highlight menu (keeping the highlight
 -- itself), and runs `action` once we have a network connection.
-function AskGPT:runOnHighlight(reader_highlight, index, action)
+function Lunote:runOnHighlight(reader_highlight, index, action)
   local highlighted_text = reader_highlight.selected_text and reader_highlight.selected_text.text
   reader_highlight:onClose(true)
   if not highlighted_text or highlighted_text == "" then return end
@@ -41,10 +41,10 @@ function AskGPT:runOnHighlight(reader_highlight, index, action)
   end)
 end
 
-function AskGPT:init()
+function Lunote:init()
   -- Absent in the file manager, where there is nothing to highlight
   if self.ui.highlight then
-    self.ui.highlight:addToHighlightDialog("askgpt_01_explain", function(reader_highlight, index)
+    self.ui.highlight:addToHighlightDialog("lunote_01_explain", function(reader_highlight, index)
       return {
         text = _("Explain"),
         callback = function()
@@ -54,7 +54,7 @@ function AskGPT:init()
     end)
 
     if Dialogs.isTranslationEnabled() then
-      self.ui.highlight:addToHighlightDialog("askgpt_02_translate", function(reader_highlight, index)
+      self.ui.highlight:addToHighlightDialog("lunote_02_translate", function(reader_highlight, index)
         return {
           text = _("AI Translate"),
           callback = function()
@@ -72,7 +72,7 @@ end
 
 --- Snapshot this book's highlights and notes into the local store while the
 --- document is still open, so syncing never has to walk sidecars.
-function AskGPT:onCloseDocument()
+function Lunote:onCloseDocument()
   Annotations.mirror(self.ui)
 end
 
@@ -113,9 +113,9 @@ local function showPairingDialog()
   dialog:onShowKeyboard()
 end
 
-function AskGPT:addToMainMenu(menu_items)
-  menu_items.askgpt = {
-    text = _("AskGPT"),
+function Lunote:addToMainMenu(menu_items)
+  menu_items.lunote = {
+    text = _("Lunote"),
     sub_item_table = {
       {
         text = _("Browse saved explanations"),
@@ -154,8 +154,8 @@ function AskGPT:addToMainMenu(menu_items)
 end
 
 --- Called by PluginLoader's "Disable plugin and delete settings".
-function AskGPT:deletePluginSettings()
+function Lunote:deletePluginSettings()
   History.deleteDatabase()
 end
 
-return AskGPT
+return Lunote

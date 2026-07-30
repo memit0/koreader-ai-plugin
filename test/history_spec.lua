@@ -4,7 +4,7 @@ local check = ko.check
 
 print("history.lua")
 ko.reset()
-local History = require("history")
+local History = require("lunote_history")
 
 local BOOK = { title = "Critique of Pure Reason", authors = "Kant", md5 = "abc", file = "/k.epub" }
 
@@ -71,7 +71,7 @@ check("trailing whitespace trimmed off the user part",
     History.stripAiNote("mine\n\n" .. MARKER .. "\nAI") == "mine")
 
 ko.reset()
-History = require("history")
+History = require("lunote_history")
 
 local annotations = {
     { datetime = "2026-07-29 10:00:00", text = "passage one", note = "my thought",
@@ -117,7 +117,7 @@ check("chapter edit re-dirties", History.mirrorAnnotations(BOOK, annotations) ==
 -- batching and keyset pagination
 print("\nbatching")
 ko.reset()
-History = require("history")
+History = require("lunote_history")
 for i = 1, 12 do
     History.startConversation{ book = BOOK, kind = "explain", highlight = "h" .. i,
         messages = { { role = "user", content = "q" }, { role = "assistant", content = "a" } } }

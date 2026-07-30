@@ -1,5 +1,5 @@
 #!/bin/sh
-# Symlinks this checkout into a local KOReader install as askgpt.koplugin, so
+# Symlinks this checkout into a local KOReader install as lunote.koplugin, so
 # the desktop emulator picks up edits with no copying.
 #
 #   ./dev/install-to-koreader.sh ~/koreader
@@ -21,7 +21,7 @@ if [ ! -d "$plugins" ]; then
 fi
 
 source_dir="$(cd "$(dirname "$0")/.." && pwd)"
-link="$plugins/askgpt.koplugin"
+link="$plugins/lunote.koplugin"
 
 if [ -e "$link" ] && [ ! -L "$link" ]; then
     echo "$link exists and is not a symlink; move it aside first" >&2

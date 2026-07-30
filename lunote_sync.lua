@@ -15,7 +15,7 @@ Built around the assumption that e-reader wifi drops mid-transfer:
 Push only: the device is the source of truth and the web app displays. No conflict
 resolution, no pull cursor.
 ]]
-local History = require("history")
+local History = require("lunote_history")
 local UIManager = require("ui/uimanager")
 local InfoMessage = require("ui/widget/infomessage")
 local http = require("socket.http")
@@ -26,7 +26,7 @@ local socketutil = require("socketutil")
 local logger = require("logger")
 local _ = require("gettext")
 
-local Env = require("env")
+local Env = require("lunote_env")
 
 local Sync = {}
 
@@ -34,7 +34,7 @@ local BATCH_SIZE = 25
 local DEFAULT_ENDPOINT = "https://koreader-ai-plugin-webapp.vercel.app"
 
 local function endpoint()
-    return History.getState("endpoint") or Env.get("ASKGPT_SYNC_URL") or DEFAULT_ENDPOINT
+    return History.getState("endpoint") or Env.get("LUNOTE_SYNC_URL") or DEFAULT_ENDPOINT
 end
 
 function Sync.getToken()
@@ -180,7 +180,7 @@ function Sync.runInteractive()
     UIManager:nextTick(function()
         Sync.run{
             progress = function(sent)
-                logger.dbg("AskGPT sync: sent", sent)
+                logger.dbg("Lunote sync: sent", sent)
             end,
             done = function(sent, err)
                 UIManager:close(message)

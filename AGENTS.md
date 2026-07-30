@@ -21,7 +21,7 @@ highlight → Explain → OpenRouter (default: google/gemini-2.5-flash-lite)
                          ↓
         ┌────────────────┴────────────────┐
         ↓                                 ↓
-KOReader annotation              askgpt_history.sqlite3
+KOReader annotation              lunote_history.sqlite3
 (the book's own note)            (transcripts + sync outbox)
         ↓                                 ↓
   Bookmarks, Exporter              "Sync to web app" → Supabase
@@ -48,7 +48,7 @@ holds full transcripts (including follow-up questions) and the sync outbox.
    `nil, message` and surface it in an InfoMessage. This has already been the
    cause of one crash-on-every-API-error bug.
 2. **The AI note marker must strip cleanly.** `history.lua` appends the
-   explanation to an annotation's note behind `— AskGPT —`. Mirroring strips from
+   explanation to an annotation's note behind `— Lunote —`. Mirroring strips from
    that marker so the web app receives *your* note, not the generated text. Two
    shapes exist — appended after a note you wrote, and standing alone on a
    highlight that had none — and both must strip, or explanations sync as if you
@@ -63,14 +63,14 @@ holds full transcripts (including follow-up questions) and the sync outbox.
 6. **Target Lua 5.1 / LuaJIT.** Lua 5.1 silently accepts invalid escape
    sequences; LuaJIT rejects them, and the device runs LuaJIT. Check any new file
    loads under `luajit`.
-7. **The plugin directory must be named `askgpt.koplugin`** — KOReader ignores
+7. **The plugin directory must be named `lunote.koplugin`** — KOReader ignores
    anything else, silently.
 
 ## Testing — do not require a device
 
 ```sh
 ./test/run.sh        # 103 assertions against real SQLite
-./dev/askgpt-sim     # interactive simulator: real plugin code, mocked model
+./dev/lunote-sim     # interactive simulator: real plugin code, mocked model
 ```
 
 The simulator runs the plugin's real modules with KOReader's widget layer
@@ -84,10 +84,10 @@ PDFs can yield a selection with no positions).
 
 ## Configuration
 
-`OPENROUTER_API_KEY` in a `.env` beside the plugin. `configuration.lua`
+`OPENROUTER_API_KEY` in a `.env` beside the plugin. `lunote_config.lua`
 optionally overrides model, provider, endpoint and the `features` table
 (`explain_prompt`, `translate_to`, `save_to_notes`, `log_translations`).
-Precedence is uniform: `configuration.lua` > `.env` > defaults.
+Precedence is uniform: `lunote_config.lua` > `.env` > defaults.
 
 ## State of things
 
