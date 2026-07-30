@@ -17,7 +17,7 @@ local logger = require("logger")
 local History = {}
 
 local DB_PATH = DataStorage:getSettingsDir() .. "/lunote_history.sqlite3"
-local DB_SCHEMA_VERSION = 1
+local DB_SCHEMA_VERSION = 2
 
 -- Marks where the explanation begins inside an annotation's note. Mirroring
 -- strips from here on, so the web app gets the user's note and the AI text stays in
@@ -39,6 +39,8 @@ CREATE TABLE IF NOT EXISTS book (
     authors    TEXT,
     md5        TEXT,
     file       TEXT,
+    cover_png  BLOB,
+    cover_sent INTEGER NOT NULL DEFAULT 0,
     updated_at INTEGER
 );
 CREATE UNIQUE INDEX IF NOT EXISTS book_identity ON book(title, authors, md5);
@@ -132,6 +134,9 @@ local function setStateIn(conn, key, value)
     stmt:reset():bind(key, tostring(value)):step()
 end
 
+-- CREATE ... IF NOT EXISTS only helps for tables that don't exist yet; a column
+-- added to an existing table needs its own ALTER, guarded by a version check
+-- since SQLite has no "ADD COLUMN IF NOT EXISTS".
 local function migrate(conn)
     local version = tonumber(conn:rowexec("PRAGMA user_version;")) or 0
     if version == DB_SCHEMA_VERSION then return end
@@ -139,8 +144,16 @@ local function migrate(conn)
         logger.warn("Lunote history: database is newer than this plugin, leaving it alone")
         return
     end
-    -- Only one version so far; CREATE ... IF NOT EXISTS is the whole migration.
+
     conn:exec(SCHEMA)
+
+    -- version 0 means CREATE TABLE just ran above and already has these columns;
+    -- only a pre-existing version-1 `book` table is missing them.
+    if version == 1 then
+        conn:exec("ALTER TABLE book ADD COLUMN cover_png BLOB;")
+        conn:exec("ALTER TABLE book ADD COLUMN cover_sent INTEGER NOT NULL DEFAULT 0;")
+    end
+
     conn:exec(string.format("PRAGMA user_version=%d;", DB_SCHEMA_VERSION))
 end
 
@@ -202,18 +215,51 @@ local function upsertBook(conn, book)
         local id = tonumber(row[1])
         local upd = conn:prepare("UPDATE book SET file = ?, updated_at = ? WHERE id = ?;")
         upd:reset():bind(book.file or "", os.time(), id):step()
+        -- Only a freshly extracted cover writes here; never clobber one already
+        -- cached (or already sent) with a nil.
+        if book.cover_png then
+            conn:prepare("UPDATE book SET cover_png = ?, cover_sent = 0 WHERE id = ?;")
+                :reset():bind(book.cover_png, id):step()
+        end
         return id
     end
 
     local ins = conn:prepare(
-        "INSERT INTO book (title, authors, md5, file, updated_at) VALUES (?, ?, ?, ?, ?);")
-    ins:reset():bind(title, authors, md5, book.file or "", os.time()):step()
+        "INSERT INTO book (title, authors, md5, file, cover_png, updated_at) VALUES (?, ?, ?, ?, ?, ?);")
+    ins:reset():bind(title, authors, md5, book.file or "", book.cover_png, os.time()):step()
     local id = lastInsertId(conn)
     assignUuid(conn, "book", id)
     return id
 end
 
 History.upsertBook = upsertBook
+
+--- Whether `book` (identified the same way upsertBook matches it) still needs its
+--- cover extracted: no row yet, or a row with no cover cached and none sent yet.
+function History.needsCoverExtraction(book)
+    return withConn(function(conn)
+        local stmt = conn:prepare([[
+            SELECT cover_png, cover_sent FROM book WHERE title = ? AND authors = ? AND md5 = ?;
+        ]])
+        local row = stmt:reset():bind(book.title or "", book.authors or "", book.md5 or ""):step()
+        if not row then return true end
+        return row[1] == nil and tonumber(row[2]) == 0
+    end)
+end
+
+--- Marks each book's cover delivered: the local copy is no longer needed.
+function History.markCoverSent(book_ids)
+    if not book_ids or #book_ids == 0 then return true end
+    return withConn(function(conn)
+        conn:exec("BEGIN;")
+        local stmt = conn:prepare("UPDATE book SET cover_sent = 1, cover_png = NULL WHERE id = ?;")
+        for _, id in ipairs(book_ids) do
+            stmt:reset():bind(id):step()
+        end
+        conn:exec("COMMIT;")
+        return true
+    end)
+end
 
 --- Records a new conversation plus its opening messages. Returns the conversation id.
 function History.startConversation(info)
@@ -431,16 +477,26 @@ end
 -- Everything below is keyset paginated (`id > cursor`) rather than using OFFSET,
 -- so a batch costs the same whether it is the first or the thousandth.
 
+-- Returns the book refs to send alongside a batch, plus the ids among them whose
+-- (still-local) cover just got attached — the caller marks those sent once the
+-- server has acknowledged the batch, mirroring how item/conversation dirty flags
+-- are only cleared after a successful post.
 local function bookRefs(conn, book_ids)
-    local out = {}
-    local stmt = conn:prepare("SELECT uuid, title, authors, md5 FROM book WHERE id = ?;")
+    local refs, cover_ids = {}, {}
+    local stmt = conn:prepare(
+        "SELECT uuid, title, authors, md5, cover_png, cover_sent FROM book WHERE id = ?;")
     for book_id in pairs(book_ids) do
         local row = stmt:reset():bind(book_id):step()
         if row then
-            out[#out + 1] = { uuid = row[1], title = row[2], authors = row[3], md5 = row[4] }
+            local ref = { uuid = row[1], title = row[2], authors = row[3], md5 = row[4] }
+            if row[5] and tonumber(row[6]) == 0 then
+                ref.cover_base64 = require("mime").b64(row[5])
+                cover_ids[#cover_ids + 1] = book_id
+            end
+            refs[#refs + 1] = ref
         end
     end
-    return out
+    return refs, cover_ids
 end
 
 --- One page of unsynced annotations. Returns the records, the books they belong
@@ -468,7 +524,8 @@ function History.getDirtyItems(after_id, limit)
             }
             row = stmt:step()
         end
-        return { records = items, ids = ids, books = bookRefs(conn, book_ids), cursor = cursor }
+        local books, cover_ids = bookRefs(conn, book_ids)
+        return { records = items, ids = ids, books = books, cover_ids = cover_ids, cursor = cursor }
     end)
 end
 
@@ -512,7 +569,8 @@ function History.getDirtyConversations(after_id, limit)
             end
         end
 
-        return { records = conversations, ids = ids, books = bookRefs(conn, book_ids), cursor = cursor }
+        local books, cover_ids = bookRefs(conn, book_ids)
+        return { records = conversations, ids = ids, books = books, cover_ids = cover_ids, cursor = cursor }
     end)
 end
 

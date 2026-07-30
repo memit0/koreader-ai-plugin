@@ -17,6 +17,9 @@ local Annotations = {}
 
 --- Book identity for the open document: the same (title, authors, md5) triple
 --- KOReader's own Statistics plugin uses, so history survives a rename or move.
+--- Also attaches a freshly extracted cover the first time this book is seen —
+--- see History.needsCoverExtraction — since the document (and its cover) is only
+--- available while it's still open.
 function Annotations.getBook(ui)
     local props = ui.document and ui.document:getProps() or {}
     local file = ui.document and ui.document.file
@@ -26,12 +29,16 @@ function Annotations.getBook(ui)
         local ok, result = pcall(util.partialMD5, file)
         if ok then md5 = result end
     end
-    return {
+    local book = {
         title = props.title or "",
         authors = props.authors or "",
         md5 = md5 or "",
         file = file or "",
     }
+    if ui.document and History.needsCoverExtraction(book) then
+        book.cover_png = require("lunote_cover").extract(ui.document)
+    end
+    return book
 end
 
 --- Saves `explanation` onto the annotation for the current selection.

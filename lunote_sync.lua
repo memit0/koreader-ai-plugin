@@ -125,6 +125,7 @@ local function pushTable(table_name, fetch, token, progress)
 
         -- Only now is it safe to clear the flags
         History.markSynced(table_name, batch.ids)
+        History.markCoverSent(batch.cover_ids)
         sent = sent + #batch.records
         cursor = batch.cursor
 
