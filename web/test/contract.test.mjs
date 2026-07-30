@@ -18,7 +18,7 @@ import { createRequire } from "node:module";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fixture = JSON.parse(
-  readFileSync(resolve(here, "../../test/fixtures/payloads.json"), "utf8"),
+  readFileSync(resolve(here, "./fixtures/payloads.json"), "utf8"),
 );
 
 // --- in-memory Supabase -----------------------------------------------------

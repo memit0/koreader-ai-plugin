@@ -2,7 +2,7 @@
   "pair": {
     "code": "ABC234",
     "device_name": "TestReader",
-    "device_uuid": "ede00f55ea05f252"
+    "device_uuid": "a7245358bd5002bf"
   },
   "sync": [
     {
@@ -11,18 +11,18 @@
           "authors": "Kant",
           "md5": "d41d8cd98f00b204",
           "title": "Critique of Pure Reason",
-          "uuid": "ede00f55ea05f252:book:1"
+          "uuid": "a7245358bd5002bf:book:1"
         }
       ],
       "items": [
         {
-          "book_uuid": "ede00f55ea05f252:book:1",
+          "book_uuid": "a7245358bd5002bf:book:1",
           "chapter": "Chapter 1",
           "datetime": "2026-07-29 10:00:00",
           "note": "worth rereading",
           "pageno": 42,
           "text": "the categorical imperative",
-          "uuid": "ede00f55ea05f252:item:1"
+          "uuid": "a7245358bd5002bf:item:1"
         }
       ]
     },
@@ -32,13 +32,13 @@
           "authors": "Kant",
           "md5": "d41d8cd98f00b204",
           "title": "Critique of Pure Reason",
-          "uuid": "ede00f55ea05f252:book:1"
+          "uuid": "a7245358bd5002bf:book:1"
         }
       ],
       "conversations": [
         {
           "annotation_datetime": "2026-07-29 10:00:00",
-          "book_uuid": "ede00f55ea05f252:book:1",
+          "book_uuid": "a7245358bd5002bf:book:1",
           "chapter": "Chapter 1",
           "created_at": 1785414217,
           "highlight": "the categorical imperative",
@@ -67,7 +67,7 @@
           ],
           "model": "google/gemini-2.5-flash-lite",
           "pageno": 42,
-          "uuid": "ede00f55ea05f252:conversation:1"
+          "uuid": "a7245358bd5002bf:conversation:1"
         }
       ]
     }

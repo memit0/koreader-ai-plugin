@@ -66,9 +66,12 @@ History.setState("token", "device-token")
 ko.http.response = { accepted = 1 }
 Sync.run{ done = function() end }
 
-local out = assert(io.open(here .. "/fixtures/payloads.json", "w"))
+-- Optional argument: where to write. Defaults to this repo's fixture, but the
+-- web app keeps its own copy, so point it there when regenerating.
+local destination = arg and arg[1] or (here .. "/fixtures/payloads.json")
+local out = assert(io.open(destination, "w"))
 out:write(encode({ pair = { code = "ABC234", device_uuid = History.getState("device_uuid"),
                             device_name = "TestReader" },
                    sync = ko.http.sent }))
 out:close()
-print("wrote " .. #ko.http.sent .. " sync payload(s)")
+print("wrote " .. #ko.http.sent .. " sync payload(s) to " .. destination)
