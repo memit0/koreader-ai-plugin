@@ -10,10 +10,28 @@ terrible edit-test loop. This directory gives you two faster ones.
 
 ## The simulator
 
+Needs a Lua 5.1-compatible interpreter and five modules. KOReader runs on
+LuaJIT, so that is what the launcher looks for first — and what it will pick on
+macOS, where there is no `lua5.1`.
+
 ```sh
-apt-get install lua5.1 lua-sql-sqlite3 lua-cjson lua-socket lua-sec
+# macOS
+brew install luajit luarocks
+luarocks --lua-version=5.1 install luasocket
+luarocks --lua-version=5.1 install luasec OPENSSL_DIR=$(brew --prefix openssl@3)
+luarocks --lua-version=5.1 install lua-cjson
+luarocks --lua-version=5.1 install luasql-sqlite3
+
+# Debian/Ubuntu
+apt-get install luajit lua-socket lua-sec lua-cjson lua-sql-sqlite3
+```
+
+```sh
 ./dev/askgpt-sim
 ```
+
+`LUA=/path/to/luajit ./dev/askgpt-sim` forces a particular interpreter. Lua 5.4
+will not work: the modules are built for the 5.1 ABI.
 
 ```
 askgpt> open
@@ -124,5 +142,5 @@ button does not appear.
 ## Automated tests
 
 The simulator is for poking at things by hand. For assertions, `../test/run.sh`
-runs 103 of them against real SQLite. Both matter: the test suite caught the
+runs them against real SQLite, on LuaJIT or Lua 5.1. Both matter: the test suite caught the
 book-reference bug, and the simulator caught a note-marker bug the suite missed.

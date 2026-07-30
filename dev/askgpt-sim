@@ -3,7 +3,66 @@
 #
 #   ./dev/askgpt-sim                        interactive
 #   ./dev/askgpt-sim dev/scripts/smoke.txt  run a script
+#   LUA=/path/to/lua ./dev/askgpt-sim       force an interpreter
 #
-# Needs: lua5.1, lua-sql-sqlite3, lua-cjson, lua-socket, lua-sec
-#   apt-get install lua5.1 lua-sql-sqlite3 lua-cjson lua-socket lua-sec
-exec lua5.1 "$(dirname "$0")/run.lua" "$@"
+# Needs a Lua 5.1-compatible interpreter and five modules. KOReader runs on
+# LuaJIT, so that is the closest match and the first thing looked for.
+#
+#   macOS:  brew install luajit luarocks
+#           luarocks --lua-version=5.1 install luasocket
+#           luarocks --lua-version=5.1 install luasec OPENSSL_DIR=$(brew --prefix openssl@3)
+#           luarocks --lua-version=5.1 install lua-cjson
+#           luarocks --lua-version=5.1 install luasql-sqlite3
+#
+#   Debian/Ubuntu:
+#           apt-get install luajit lua-socket lua-sec lua-cjson lua-sql-sqlite3
+set -e
+
+find_lua() {
+    if [ -n "${LUA:-}" ]; then
+        if command -v "$LUA" >/dev/null 2>&1; then
+            command -v "$LUA"
+            return 0
+        fi
+        echo "LUA is set to '$LUA' but that is not runnable" >&2
+        exit 1
+    fi
+    # LuaJIT first: it is what KOReader itself runs on
+    for candidate in luajit lua5.1 lua51 lua-5.1 lua; do
+        if command -v "$candidate" >/dev/null 2>&1; then
+            command -v "$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
+
+lua="$(find_lua || true)"
+
+if [ -z "$lua" ]; then
+    cat >&2 <<'MSG'
+No Lua interpreter found.
+
+The simulator needs Lua 5.1 or LuaJIT (KOReader runs on LuaJIT):
+
+  macOS           brew install luajit luarocks
+  Debian/Ubuntu   apt-get install luajit lua-socket lua-sec lua-cjson lua-sql-sqlite3
+
+then install the modules listed at the top of this script.
+Or point at an interpreter directly:  LUA=/path/to/luajit ./dev/askgpt-sim
+MSG
+    exit 1
+fi
+
+# Anything past 5.1 will fail on the modules and on 5.1 semantics, so say so
+# plainly rather than dying later with a confusing stack trace.
+version="$("$lua" -e 'io.write(_VERSION)' 2>/dev/null || echo unknown)"
+case "$version" in
+    "Lua 5.1") ;;
+    *)
+        echo "warning: $lua reports '$version'; this targets Lua 5.1 (KOReader uses LuaJIT)." >&2
+        echo "         If it misbehaves, install luajit and re-run." >&2
+        ;;
+esac
+
+exec "$lua" "$(dirname "$0")/run.lua" "$@"

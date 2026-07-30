@@ -1,6 +1,6 @@
 -- The original crash-path coverage, carried over to the store/sync architecture.
 -- KOReader runs scheduled tasks unprotected, so any raise here kills the reader.
-local here = debug.getinfo(1, "S").source:sub(2):match("^(.*)[/\][^/\]*$") or "."
+local here = debug.getinfo(1, "S").source:sub(2):match("^(.*)[/\\][^/\\]*$") or "."
 local ko = dofile(here .. "/support.lua")
 local check = ko.check
 

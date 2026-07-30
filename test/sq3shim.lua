@@ -8,6 +8,9 @@
 --   conn:prepare(sql)   -> stmt; stmt:reset():bind(...):step() -> row array or nil
 local driver = require("luasql.sqlite3")
 
+-- 5.1 and LuaJIT expose unpack globally; later versions moved it
+local unpack = unpack or table.unpack
+
 local M = {}
 
 local function quote(value)

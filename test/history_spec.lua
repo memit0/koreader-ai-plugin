@@ -1,4 +1,4 @@
-local here = debug.getinfo(1, "S").source:sub(2):match("^(.*)[/\][^/\]*$") or "."
+local here = debug.getinfo(1, "S").source:sub(2):match("^(.*)[/\\][^/\\]*$") or "."
 local ko = dofile(here .. "/support.lua")
 local check = ko.check
 
