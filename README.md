@@ -107,7 +107,7 @@ It is built for bad wifi. Work goes out in small batches and each is confirmed b
 
 Push only: the device is the source of truth and the web app displays. Nothing is downloaded back.
 
-The web app itself is in [`web/`](web/) — a Next.js + Supabase project with a library view and a per-book page showing each highlight together with your note and its explanations. It has its own README covering setup and the device API contract. It lives in this repo for now but is standalone and belongs in its own; `web/README.md` has the one-liner to split it out with its history intact.
+The web app itself lives in [koreader-ai-plugin-webapp](https://github.com/memit0/koreader-ai-plugin-webapp) — a Next.js + Supabase project with a library view and a per-book page showing each highlight together with your note and its explanations. Its README covers setup and the device API contract.
 
 ## Troubleshooting
 
