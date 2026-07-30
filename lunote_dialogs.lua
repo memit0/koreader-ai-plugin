@@ -1,21 +1,23 @@
-local ChatGPTViewer = require("chatgptviewer")
+local ConversationViewer = require("lunote_viewer")
 local UIManager = require("ui/uimanager")
 local InfoMessage = require("ui/widget/infomessage")
 local _ = require("gettext")
 
-local queryChatGPT = require("gpt_query")
+local queryModel = require("lunote_query")
+local Annotations = require("lunote_annotations")
+local History = require("lunote_history")
 
 local CONFIGURATION = nil
 
-local success, result = pcall(function() return require("configuration") end)
+local success, result = pcall(function() return require("lunote_config") end)
 if success then
   CONFIGURATION = result
 else
-  print("configuration.lua not found, skipping...")
+  print("lunote_config.lua not found, skipping...")
 end
 
 -- What the assistant is told to do with a highlight. Override it by setting
--- features.explain_prompt in configuration.lua.
+-- features.explain_prompt in lunote_config.lua.
 local DEFAULT_EXPLAIN_PROMPT = [[
 You are helping someone understand the book they are reading. They have highlighted a passage.
 
@@ -44,17 +46,18 @@ end
 -- Runs a blocking query behind a "Loading..." message, then hands the answer to
 -- on_answer. Any failure is reported to the user instead of raising, because an
 -- uncaught error in a scheduled task terminates KOReader.
-local function runQuery(loading_text, message_history, on_answer)
+local function runQuery(loading_text, message_history, on_answer, on_error)
   local loading = InfoMessage:new{ text = loading_text }
   UIManager:show(loading)
   -- Get the message on screen before we block on the network
   UIManager:forceRePaint()
 
   UIManager:nextTick(function()
-    local answer, err = queryChatGPT(message_history)
+    local answer, err, model = queryModel(message_history)
     UIManager:close(loading)
 
     if not answer then
+      if on_error then on_error() end
       showError(_("Could not get a response:") .. "\n\n" .. tostring(err))
       return
     end
@@ -63,7 +66,7 @@ local function runQuery(loading_text, message_history, on_answer)
       role = "assistant",
       content = answer,
     })
-    on_answer(answer)
+    on_answer(answer, model)
   end)
 end
 
@@ -85,26 +88,36 @@ local function createResultText(highlightedText, message_history)
     elseif i == 3 then
       result_text = result_text .. message.content .. "\n\n"
     else
-      result_text = result_text .. _("ChatGPT: ") .. message.content .. "\n\n"
+      result_text = result_text .. _("Reply: ") .. message.content .. "\n\n"
     end
   end
 
   return result_text
 end
 
-local function showViewer(viewer_title, highlightedText, message_history)
-  local function handleNewQuestion(chatgpt_viewer, question)
+-- `conversation_id` is nil when the exchange was not recorded (a failed write, or
+-- a translation with logging off); follow-ups then simply are not recorded either.
+local function showViewer(viewer_title, highlightedText, message_history, conversation_id)
+  local function handleNewQuestion(conversation_viewer, question)
     table.insert(message_history, {
       role = "user",
       content = question,
     })
 
-    runQuery(_("Asking ChatGPT…"), message_history, function()
-      chatgpt_viewer:update(createResultText(highlightedText, message_history))
+    runQuery(_("Asking…"), message_history, function(answer)
+      if conversation_id then
+        History.appendMessages(conversation_id, {
+          { role = "user", content = question },
+          { role = "assistant", content = answer },
+        })
+      end
+      conversation_viewer:update(createResultText(highlightedText, message_history))
+    end, function()
+      table.remove(message_history)
     end)
   end
 
-  UIManager:show(ChatGPTViewer:new {
+  UIManager:show(ConversationViewer:new {
     title = viewer_title,
     text = createResultText(highlightedText, message_history),
     onAskQuestion = handleNewQuestion,
@@ -112,7 +125,8 @@ local function showViewer(viewer_title, highlightedText, message_history)
 end
 
 -- Explain the highlight straight away, no question to type in.
-local function explainHighlight(ui, highlightedText)
+-- `index` is the annotation index when an existing highlight was long-pressed.
+local function explainHighlight(ui, highlightedText, index)
   local title, author = getBookContext(ui)
   local message_history = {
     {
@@ -127,8 +141,29 @@ local function explainHighlight(ui, highlightedText)
     },
   }
 
-  runQuery(_("Asking ChatGPT…"), message_history, function()
-    showViewer(_("Explanation"), highlightedText, message_history)
+  runQuery(_("Asking…"), message_history, function(answer, model)
+    -- Attach to the book's own annotation first, so the explanation shows up in
+    -- Bookmarks next to the highlight and the user's notes.
+    local annotation
+    if getFeature("save_to_notes") ~= false then
+      annotation = Annotations.saveToBook(ui, index, answer)
+    end
+
+    local conversation_id = History.startConversation{
+      book = Annotations.getBook(ui),
+      kind = "explain",
+      highlight = highlightedText,
+      chapter = annotation and annotation.chapter,
+      pageno = annotation and annotation.pageno,
+      annotation_datetime = annotation and annotation.datetime,
+      model = model,
+      messages = {
+        { role = "user", content = highlightedText },
+        { role = "assistant", content = answer },
+      },
+    }
+
+    showViewer(_("Explanation"), highlightedText, message_history, conversation_id)
   end)
 end
 
@@ -147,8 +182,22 @@ local function translateHighlight(ui, highlightedText)
     },
   }
 
-  runQuery(_("Translating…"), message_history, function()
-    showViewer(_("Translation"), highlightedText, message_history)
+  runQuery(_("Translating…"), message_history, function(answer, model)
+    -- Translations stay out of your notes, and out of the history unless asked for
+    local conversation_id
+    if getFeature("log_translations") then
+      conversation_id = History.startConversation{
+        book = Annotations.getBook(ui),
+        kind = "translate",
+        highlight = highlightedText,
+        model = model,
+        messages = {
+          { role = "user", content = highlightedText },
+          { role = "assistant", content = answer },
+        },
+      }
+    end
+    showViewer(_("Translation"), highlightedText, message_history, conversation_id)
   end)
 end
 

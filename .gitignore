@@ -1,3 +1,4 @@
 /api_key.lua
 /configuration.lua
 /.env
+/test/tmp/

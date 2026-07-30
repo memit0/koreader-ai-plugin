@@ -4,7 +4,7 @@ local ltn12 = require("ltn12")
 local json = require("json")
 local socketutil = require("socketutil")
 
-local Env = require("env")
+local Env = require("lunote_env")
 
 local api_key = nil
 local CONFIGURATION = nil
@@ -18,11 +18,11 @@ else
 end
 
 -- Attempt to load the configuration module
-success, result = pcall(function() return require("configuration") end)
+success, result = pcall(function() return require("lunote_config") end)
 if success then
   CONFIGURATION = result
 else
-  print("configuration.lua not found, skipping...")
+  print("lunote_config.lua not found, skipping...")
 end
 
 -- The request blocks the UI, so cap how long we are willing to wait.
@@ -65,7 +65,7 @@ local function resolveProvider()
   if name and PROVIDERS[name] then
     return PROVIDERS[name]
   end
-  -- A key in configuration.lua predates OpenRouter support, so honour the
+  -- A key in lunote_config.lua predates OpenRouter support, so honour the
   -- endpoint those setups have always used.
   if configuredKey() then
     return PROVIDERS.openai
@@ -78,7 +78,7 @@ local function resolveProvider()
   return PROVIDERS.openrouter
 end
 
--- Precedence is the same for every setting: configuration.lua, then .env,
+-- Precedence is the same for every setting: lunote_config.lua, then .env,
 -- then the provider's default.
 local function resolveSettings()
   local provider = resolveProvider()
@@ -105,13 +105,13 @@ end
 
 -- Returns the assistant's reply, or nil plus an error message.
 -- It never raises: an uncaught error here takes the whole reader down with it.
-local function queryChatGPT(message_history)
+local function queryModel(message_history)
   local provider, api_key_value, api_url, model = resolveSettings()
 
   if not api_key_value then
     return nil, string.format(
-      "No API key found. Put %s=... in a .env file in the askgpt.koplugin directory, "
-        .. "or set api_key in configuration.lua.", provider.env_key)
+      "No API key found. Put %s=... in a .env file in the lunote.koplugin directory, "
+        .. "or set api_key in lunote_config.lua.", provider.env_key)
   end
 
   -- Determine whether to use http or https
@@ -144,8 +144,8 @@ local function queryChatGPT(message_history)
 
   -- Optional attribution headers, used by OpenRouter for its app rankings
   if api_url:find("openrouter.ai", 1, true) then
-    headers["HTTP-Referer"] = "https://github.com/drewbaumann/AskGPT"
-    headers["X-Title"] = "AskGPT for KOReader"
+    headers["HTTP-Referer"] = "https://github.com/memit0/koreader-ai-plugin"
+    headers["X-Title"] = "Lunote for KOReader"
   end
 
   local responseBody = {}
@@ -187,7 +187,8 @@ local function queryChatGPT(message_history)
     return nil, "The API did not return an answer."
   end
 
-  return choice.message.content
+  -- The model is returned as well so callers can record which one answered
+  return choice.message.content, nil, response.model or model
 end
 
-return queryChatGPT
+return queryModel

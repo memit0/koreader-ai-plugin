@@ -1,4 +1,4 @@
--- configuration.lua is entirely optional. The API key is normally read from a
+-- lunote_config.lua is entirely optional. The API key is normally read from a
 -- .env file (see .env.sample); everything set here overrides both .env and the
 -- built-in defaults.
 
@@ -25,6 +25,14 @@ local CONFIGURATION = {
 
         -- Optional. Adds an "AI Translate" button to the highlight menu.
         -- translate_to = "French",
+
+        -- Explanations are saved onto the book's highlight as a note, so they
+        -- show up in Bookmarks and export with your own notes. Set to false to
+        -- keep them in the plugin's history only and leave your notes alone.
+        -- save_to_notes = false,
+
+        -- Translations stay out of the history unless you ask for them.
+        -- log_translations = true,
     },
 }
 

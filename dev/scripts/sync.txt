@@ -1,0 +1,13 @@
+# Exercises the sync path. Start the stub server first:
+#   node dev/stub-server.mjs
+# then:
+#   LUNOTE_SYNC_URL=http://127.0.0.1:4000 ./dev/lunote-sim dev/scripts/sync.txt
+open
+select Thoughts without content are empty, intuitions without concepts are blind.
+explain
+ask what does he mean by intuitions
+close
+status
+pair ANYCODE
+sync
+sync
