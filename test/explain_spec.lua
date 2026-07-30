@@ -67,6 +67,13 @@ for _, event in ipairs(ko.events) do
 end
 check("AnnotationsModified fired so KOReader persists it", modified)
 
+-- The regression that shipped: on a highlight with no note of its own the
+-- marker was written without its leading newlines, so stripping missed it and
+-- the explanation would have synced as the reader's own note.
+check("explanation strips back to no user note",
+    History.stripAiNote(annotation.note) == nil,
+    tostring(History.stripAiNote(annotation.note)))
+
 local books = History.listBooks()
 check("book recorded", #books == 1 and books[1].title == "Critique", books[1] and books[1].title)
 local conversations = History.listConversations(books[1].id)
@@ -92,7 +99,7 @@ check("no extra highlight created", #ui.annotation.annotations == 1, #ui.annotat
 local note = ui.annotation.annotations[1].note
 check("user's note preserved", note:sub(1, #"my own thought") == "my own thought", note)
 check("explanation appended after it", note:find(ANSWER, 1, true) ~= nil)
-check("separated by the marker", note:find(History.AI_NOTE_MARKER, 1, true) ~= nil)
+check("separated by the marker", note:find(History.AI_NOTE_SEPARATOR, 1, true) ~= nil)
 check("mirroring strips it back to the user's note",
     History.stripAiNote(note) == "my own thought", History.stripAiNote(note))
 

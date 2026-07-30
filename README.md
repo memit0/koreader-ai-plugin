@@ -109,6 +109,23 @@ Push only: the device is the source of truth and the web app displays. Nothing i
 
 The web app itself lives in [koreader-ai-plugin-webapp](https://github.com/memit0/koreader-ai-plugin-webapp) — a Next.js + Supabase project with a library view and a per-book page showing each highlight together with your note and its explanations. Its README covers setup and the device API contract.
 
+## Developing
+
+Testing by copying to a device is painfully slow. [`dev/`](dev/) has a KOReader
+simulator that runs the plugin's real code — real SQLite, real annotation
+writes, real sync — from a terminal, plus a stub sync server so the whole loop
+works with no API key and nothing deployed:
+
+```sh
+./dev/askgpt-sim
+askgpt> open
+askgpt> select Act only according to that maxim…
+askgpt> explain
+```
+
+`dev/README.md` covers it, along with how to run the real KOReader desktop
+emulator for anything visual. Automated tests are in `test/`; run `./test/run.sh`.
+
 ## Troubleshooting
 
 **The "Explain" button doesn't appear in the highlight menu.** KOReader only discovers plugins in directories whose name ends in `.koplugin`, so the directory must be named exactly `askgpt.koplugin` — a plain `git clone` gives you `AskGPT` or `koreader-ai-plugin`, which is silently ignored. Check that it is in `koreader/plugins/`, and that "AskGPT" is listed and ticked under Menu → Tools → More tools → Plugin management → User plugins. `koreader/crash.log` logs every directory that was scanned, and any plugin that failed to load.

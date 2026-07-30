@@ -1,0 +1,9 @@
+#!/bin/sh
+# KOReader simulator for the AskGPT plugin. See dev/README.md.
+#
+#   ./dev/askgpt-sim                        interactive
+#   ./dev/askgpt-sim dev/scripts/smoke.txt  run a script
+#
+# Needs: lua5.1, lua-sql-sqlite3, lua-cjson, lua-socket, lua-sec
+#   apt-get install lua5.1 lua-sql-sqlite3 lua-cjson lua-socket lua-sec
+exec lua5.1 "$(dirname "$0")/run.lua" "$@"

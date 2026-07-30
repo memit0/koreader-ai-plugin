@@ -19,10 +19,15 @@ local History = {}
 local DB_PATH = DataStorage:getSettingsDir() .. "/askgpt_history.sqlite3"
 local DB_SCHEMA_VERSION = 1
 
--- Separates the user's own note from the explanation we append to it. Mirroring
+-- Marks where the explanation begins inside an annotation's note. Mirroring
 -- strips from here on, so the web app gets the user's note and the AI text stays in
 -- the conversation table instead of being ingested twice.
-History.AI_NOTE_MARKER = "\n\n— AskGPT —\n"
+--
+-- The label and the separator are kept apart deliberately: a note that had no
+-- user text starts at the label with no leading blank lines, and stripping has
+-- to recognise both forms. Searching for the label alone does that.
+History.AI_NOTE_MARKER = "— AskGPT —"
+History.AI_NOTE_SEPARATOR = "\n\n" .. History.AI_NOTE_MARKER .. "\n"
 
 History.DB_PATH = DB_PATH
 
@@ -88,12 +93,13 @@ CREATE TABLE IF NOT EXISTS sync_state (
 );
 ]]
 
--- Removes the appended explanation, leaving only what the user wrote.
+--- Removes the appended explanation, leaving only what the user wrote. Returns
+--- nil when the note was nothing but an explanation.
 function History.stripAiNote(note)
     if not note then return nil end
     local at = note:find(History.AI_NOTE_MARKER, 1, true)
     if not at then return note end
-    local user_part = note:sub(1, at - 1)
+    local user_part = note:sub(1, at - 1):gsub("%s+$", "")
     if user_part == "" then return nil end
     return user_part
 end

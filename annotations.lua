@@ -54,11 +54,15 @@ function Annotations.saveToBook(ui, index, explanation)
         local annotation = ui.annotation.annotations[index]
         if not annotation then return nil end
 
-        -- Same "\n\n" append the note editor uses; never clobber the user's text
+        -- Same "\n\n" append the note editor uses; never clobber the user's text.
+        -- With no note of their own there is nothing to separate from, so the
+        -- label goes first without the blank lines. Both forms are recognised by
+        -- History.stripAiNote, which is what keeps the explanation from syncing
+        -- as if the reader had written it.
         if annotation.note and annotation.note ~= "" then
-            annotation.note = annotation.note .. History.AI_NOTE_MARKER .. explanation
+            annotation.note = annotation.note .. History.AI_NOTE_SEPARATOR .. explanation
         else
-            annotation.note = History.AI_NOTE_MARKER:gsub("^\n\n", "") .. explanation
+            annotation.note = History.AI_NOTE_MARKER .. "\n" .. explanation
         end
         annotation.note_format = "md"
 

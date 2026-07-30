@@ -56,9 +56,19 @@ check("follow-up re-marks conversation dirty", found)
 -- annotation mirroring
 print("\nannotation mirroring")
 local MARKER = History.AI_NOTE_MARKER
-check("strips AI note", History.stripAiNote("my note" .. MARKER .. "AI text") == "my note")
-check("nil when only AI text", History.stripAiNote(MARKER:gsub("^\n\n", "") .. "AI text") ~= nil)
+local SEPARATOR = History.AI_NOTE_SEPARATOR
+-- Two shapes reach the store: appended after a note the reader wrote, and
+-- standing alone on a highlight that had none. Both must strip, or the
+-- explanation syncs as if the reader had written it.
+check("strips when appended to a note",
+    History.stripAiNote("my note" .. SEPARATOR .. "AI text") == "my note",
+    History.stripAiNote("my note" .. SEPARATOR .. "AI text"))
+check("nil when the note is only an explanation",
+    History.stripAiNote(MARKER .. "\nAI text") == nil,
+    tostring(History.stripAiNote(MARKER .. "\nAI text")))
 check("untouched without marker", History.stripAiNote("just mine") == "just mine")
+check("trailing whitespace trimmed off the user part",
+    History.stripAiNote("mine\n\n" .. MARKER .. "\nAI") == "mine")
 
 ko.reset()
 History = require("history")
@@ -67,19 +77,24 @@ local annotations = {
     { datetime = "2026-07-29 10:00:00", text = "passage one", note = "my thought",
       chapter = "Ch 1", pageno = 10 },
     { datetime = "2026-07-29 11:00:00", text = "passage two",
-      note = "mine" .. MARKER .. "the explanation", chapter = "Ch 2", pageno = 20 },
+      note = "mine" .. SEPARATOR .. "the explanation", chapter = "Ch 2", pageno = 20 },
+    { datetime = "2026-07-29 11:30:00", text = "passage three",
+      note = MARKER .. "\nexplanation only", chapter = "Ch 3", pageno = 30 },
     { datetime = "2026-07-29 12:00:00", text = "", note = nil }, -- page bookmark: skipped
 }
 local changed = History.mirrorAnnotations(BOOK, annotations)
-check("mirrored two of three", changed == 2, changed)
+check("mirrored three of four", changed == 3, changed)
 
 local items = History.getDirtyItems(0, 25)
-check("two items dirty", #items.records == 2, #items.records)
+check("three items dirty", #items.records == 3, #items.records)
 local by_text = {}
 for _, record in ipairs(items.records) do by_text[record.text] = record end
 check("user note kept", by_text["passage one"].note == "my thought")
 check("AI text stripped from mirrored note", by_text["passage two"].note == "mine",
     by_text["passage two"].note)
+check("explanation-only note mirrors as no note",
+    by_text["passage three"].note == nil or by_text["passage three"].note == "",
+    tostring(by_text["passage three"].note))
 
 -- re-mirroring unchanged annotations must not re-dirty them
 History.markSynced("item", items.ids)
