@@ -10,21 +10,37 @@ terrible edit-test loop. This directory gives you two faster ones.
 
 ## The simulator
 
-Needs a Lua 5.1-compatible interpreter and five modules. KOReader runs on
-LuaJIT, so that is what the launcher looks for first — and what it will pick on
-macOS, where there is no `lua5.1`.
+Needs LuaJIT — which is what KOReader itself runs on — and `sqlite3`, which macOS
+already has.
 
 ```sh
 # macOS
-brew install luajit luarocks
-luarocks --lua-version=5.1 install luasocket
-luarocks --lua-version=5.1 install luasec OPENSSL_DIR=$(brew --prefix openssl@3)
-luarocks --lua-version=5.1 install lua-cjson
-luarocks --lua-version=5.1 install luasql-sqlite3
+brew install luajit
 
 # Debian/Ubuntu
-apt-get install luajit lua-socket lua-sec lua-cjson lua-sql-sqlite3
+apt-get install luajit sqlite3
 ```
+
+That is enough for everything except real network calls. JSON is handled by a
+small pure-Lua codec in `dev/json.lua`, and the database goes through the
+`sqlite3` command line tool, so no compiled Lua modules are required. Building
+rocks against LuaJIT is the most awkward part of setting this up, and it is not
+worth it for a development tool.
+
+Pairing and syncing do need HTTP, which means two rocks:
+
+```sh
+# macOS
+brew install luarocks
+luarocks --lua-version=5.1 install luasocket
+luarocks --lua-version=5.1 install luasec OPENSSL_DIR=$(brew --prefix openssl@3)
+
+# Debian/Ubuntu
+apt-get install lua-socket lua-sec
+```
+
+`luasql-sqlite3` and `lua-cjson` are used in preference when they happen to be
+installed, but nothing needs them.
 
 ```sh
 ./dev/askgpt-sim

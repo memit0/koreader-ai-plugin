@@ -26,7 +26,8 @@ package.path = table.concat({
 
 os.execute("mkdir -p " .. DATA .. "/settings " .. DATA .. "/sidecar " .. DATA .. "/books")
 
-local cjson = require("cjson")
+-- A small pure-Lua codec, so the simulator needs no compiled modules
+local cjson = require("json")
 
 local M = {
     PLUGIN = PLUGIN,
@@ -97,15 +98,42 @@ end
 
 -- Storage --------------------------------------------------------------------
 
+-- Linux has md5sum, macOS has md5. Only the book identity depends on this, and
+-- it just has to be stable, so falling back to size and path is acceptable.
+local md5Command
+local function findMd5Command()
+    if md5Command ~= nil then return md5Command end
+    for _, candidate in ipairs({ "md5sum", "md5 -q" }) do
+        local binary = candidate:match("^%S+")
+        local probe = io.popen("command -v " .. binary .. " 2>/dev/null")
+        local found = probe and probe:read("*l")
+        if probe then probe:close() end
+        if found and found ~= "" then
+            md5Command = candidate
+            return md5Command
+        end
+    end
+    md5Command = false
+    return md5Command
+end
+
 local function md5OfFile(path)
     if not path then return nil end
     local probe = io.open(path, "rb")
     if not probe then return nil end
+    local size = probe:seek("end")
     probe:close()
-    local pipe = io.popen("md5sum " .. string.format("%q", path) .. " 2>/dev/null")
-    local line = pipe and pipe:read("*l")
-    if pipe then pipe:close() end
-    return line and line:match("^(%x+)") or nil
+
+    local command = findMd5Command()
+    if command then
+        local pipe = io.popen(command .. " " .. string.format("%q", path) .. " 2>/dev/null")
+        local line = pipe and pipe:read("*l")
+        if pipe then pipe:close() end
+        local digest = line and line:match("(%x%x%x%x%x%x%x+)")
+        if digest then return digest end
+    end
+
+    return string.format("%08x-%s", size, path:gsub("%W", ""):sub(-16))
 end
 
 --- Annotations live in a per-book file, standing in for KOReader's .sdr

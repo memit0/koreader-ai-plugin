@@ -313,7 +313,9 @@ end
 local function rows(result, names)
     local out = {}
     if not result then return out end
-    local count = result[1] and #result[1] or 0
+    -- __rows is set by backends that can report it; a column containing NULLs
+    -- would otherwise make # unreliable.
+    local count = result.__rows or (result[1] and #result[1]) or 0
     for i = 1, count do
         local record = {}
         for column, name in ipairs(names) do

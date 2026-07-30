@@ -339,7 +339,7 @@ commands.sql = function(argument)
     end
     table.sort(columns)
     say("  " .. table.concat(columns, " | "))
-    for row = 1, #result[1] do
+    for row = 1, (result.__rows or #result[1]) do
         local cells = {}
         for _, column in ipairs(columns) do
             cells[#cells + 1] = tostring(result[column][row]):sub(1, 40)
