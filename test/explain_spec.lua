@@ -74,6 +74,14 @@ check("explanation strips back to no user note",
     History.stripAiNote(annotation.note) == nil,
     tostring(History.stripAiNote(annotation.note)))
 
+-- Same check, but through the real mirror path (Annotations.mirror ->
+-- History.mirrorAnnotations), not stripAiNote called directly on the note.
+instance:onCloseDocument()
+local mirrored_standalone = History.getDirtyItems(0, 25).records[1]
+check("mirrored standalone-shape note strips to nothing",
+    mirrored_standalone.note == nil or mirrored_standalone.note == "",
+    tostring(mirrored_standalone.note))
+
 local books = History.listBooks()
 check("book recorded", #books == 1 and books[1].title == "Critique", books[1] and books[1].title)
 local conversations = History.listConversations(books[1].id)
@@ -91,7 +99,7 @@ local existing = { {
     note = "my own thought", chapter = "Ch 2", pageno = 7,
 } }
 ui = makeUI(existing)
-loadPlugin(ui)
+local _, existing_instance = loadPlugin(ui)
 answerOK()
 pressExplain(ui, 1)
 
@@ -102,6 +110,13 @@ check("explanation appended after it", note:find(ANSWER, 1, true) ~= nil)
 check("separated by the marker", note:find(History.AI_NOTE_SEPARATOR, 1, true) ~= nil)
 check("mirroring strips it back to the user's note",
     History.stripAiNote(note) == "my own thought", History.stripAiNote(note))
+
+-- Same check, but through the real mirror path (Annotations.mirror ->
+-- History.mirrorAnnotations), not stripAiNote called directly on the note.
+existing_instance:onCloseDocument()
+local mirrored_appended = History.getDirtyItems(0, 25).records[1]
+check("mirrored appended-shape note strips to the user's note",
+    mirrored_appended.note == "my own thought", tostring(mirrored_appended.note))
 
 print("\nfollow-up questions extend the same conversation")
 local books2 = History.listBooks()
@@ -180,6 +195,12 @@ fm_instance:addToMainMenu(menu_items)
 check("menu entry added", menu_items.lunote ~= nil)
 check("has browse and sync entries", #menu_items.lunote.sub_item_table == 3,
     menu_items.lunote and #menu_items.lunote.sub_item_table)
+
+-- "Pair with web app" callback (not paired yet) opens the pairing dialog.
+menu_items.lunote.sub_item_table[3].callback()
+local pairing_dialog = ko.shown[#ko.shown]
+check("pairing dialog shown", pairing_dialog ~= nil and pairing_dialog.title ~= nil,
+    pairing_dialog)
 
 print("\nmirroring on document close")
 ko.reset()
