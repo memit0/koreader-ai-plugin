@@ -464,7 +464,7 @@ function History.getDirtyItems(after_id, limit)
             cursor = id
             items[#items + 1] = {
                 uuid = row[2], book_uuid = row[9], datetime = row[4], text = row[5],
-                note = row[6], chapter = row[7], pageno = row[8],
+                note = row[6], chapter = row[7], pageno = tonumber(row[8]),
             }
             row = stmt:step()
         end
@@ -494,7 +494,7 @@ function History.getDirtyConversations(after_id, limit)
             cursor = id
             conversations[#conversations + 1] = {
                 uuid = row[2], book_uuid = row[11], kind = row[4], highlight = row[5],
-                chapter = row[6], pageno = row[7], annotation_datetime = row[8],
+                chapter = row[6], pageno = tonumber(row[7]), annotation_datetime = row[8],
                 model = row[9], created_at = tonumber(row[10]), messages = {},
             }
             row = stmt:step()

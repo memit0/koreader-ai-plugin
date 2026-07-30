@@ -51,7 +51,7 @@ end
 local function post(path, body, token)
     local encoded_ok, payload = pcall(json.encode, body)
     if not encoded_ok then
-        return nil, "Could not encode the request."
+        return nil, "Could not encode the request: " .. tostring(payload)
     end
 
     local headers = {

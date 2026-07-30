@@ -7,6 +7,7 @@ local BOOK = { title = "Book", authors = "Author", md5 = "abc", file = "/b.epub"
 local function seed(History, conversations, items)
     for i = 1, conversations do
         History.startConversation{ book = BOOK, kind = "explain", highlight = "h" .. i,
+            pageno = i,
             messages = { { role = "user", content = "q" }, { role = "assistant", content = "a" } } }
     end
     local annotations = {}
@@ -74,6 +75,9 @@ check("items reference the book by uuid", items_payload.items[1].book_uuid == bo
     tostring(items_payload.items[1].book_uuid) .. " vs " .. tostring(book_uuid))
 check("conversations reference the book by uuid",
     conversations_payload.conversations[1].book_uuid == book_uuid)
+check("page numbers are JSON-safe Lua numbers",
+    type(items_payload.items[1].pageno) == "number"
+    and type(conversations_payload.conversations[1].pageno) == "number")
 check("no local rowids leak into the payload",
     items_payload.items[1].book_id == nil
     and conversations_payload.conversations[1].book_id == nil)
