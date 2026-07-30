@@ -76,6 +76,18 @@ local modules = {
                    err = function() end },
     ["util"] = { partialMD5 = function(path) return "md5-" .. tostring(path) end,
                  cleanupSelectedText = function(s) return s end },
+    -- Never fall through to the developer's real .env / process environment:
+    -- tests that need a value (e.g. a custom sync endpoint) set it explicitly
+    -- via History.setState instead. loadOptional still goes through the real
+    -- (overridden) require, so lunote_config/api_key stubbing below still works.
+    ["lunote_env"] = {
+        get = function() return nil end,
+        loadOptional = function(name)
+            local ok, loaded = pcall(function() return require(name) end)
+            if ok then return loaded end
+            return nil
+        end,
+    },
     ["gettext"] = setmetatable({}, { __call = function(_, s) return s end }),
     ["ui/uimanager"] = {
         show = function(_, w) table.insert(M.shown, w) end,
