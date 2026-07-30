@@ -122,6 +122,21 @@ check("conversation re-marked dirty", (function()
     end
 end)())
 
+ko.http.status = 500
+ko.http.response = {}
+viewer:onAskQuestion("failed question")
+ko.drain()
+ko.http.status = 200
+answerOK()
+viewer:onAskQuestion("question after retry")
+ko.drain()
+local retry_messages = ko.http.sent[#ko.http.sent].messages
+local leaked = false
+for _, message in ipairs(retry_messages) do
+    if message.content == "failed question" then leaked = true end
+end
+check("failed follow-up is removed before retry", not leaked)
+
 print("\nsave_to_notes = false keeps notes untouched")
 ko.reset()
 ko.modules["configuration"].features = { save_to_notes = false }

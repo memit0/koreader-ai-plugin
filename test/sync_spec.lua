@@ -31,10 +31,16 @@ check("configured after pairing", Sync.isConfigured() == true)
 local pair_payload = ko.http.sent[1]
 check("pair sends the code", pair_payload.code == "ABC123")
 check("pair sends the device uuid", pair_payload.device_uuid == History.getState("device_uuid"))
+check("production endpoint uses TLS", ko.http.transport == "https", ko.http.transport)
 
 ko.http.response = {}
 local rejected, reject_err = Sync.pair("BAD")
 check("missing token is reported, not raised", rejected == nil and reject_err ~= nil, reject_err)
+
+History.setState("endpoint", "http://127.0.0.1:3000")
+ko.http.response = { token = "local-token" }
+Sync.pair("LOCAL1")
+check("local HTTP endpoint stays supported", ko.http.transport == "http", ko.http.transport)
 
 print("\nfull sync")
 ko.reset()

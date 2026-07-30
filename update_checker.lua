@@ -5,12 +5,25 @@ local meta = require("_meta")
 local InfoMessage = require("ui/widget/infomessage")
 local UIManager = require("ui/uimanager")
 
-local RELEASES_URL = "https://api.github.com/repos/drewbaumann/AskGPT/releases/latest"
+local RELEASES_URL = "https://api.github.com/repos/memit0/koreader-ai-plugin/releases/latest"
 
--- Tags look like "v1.01"; pull the version number back out of them.
 local function parseVersion(tag)
   if type(tag) ~= "string" then return nil end
-  return tonumber(tag:match("(%d+%.?%d*)"))
+  local version = tag:match("^v?(%d+%.?%d*%.?%d*)$")
+  if not version then return nil end
+  local parts = {}
+  for part in version:gmatch("%d+") do parts[#parts + 1] = tonumber(part) end
+  return parts
+end
+
+local function isNewer(latest, current)
+  latest, current = parseVersion(latest), parseVersion(current)
+  if not latest or not current then return false end
+  for i = 1, math.max(#latest, #current) do
+    local a, b = latest[i] or 0, current[i] or 0
+    if a ~= b then return a > b end
+  end
+  return false
 end
 
 local function checkForUpdates()
@@ -40,12 +53,8 @@ local function checkForUpdates()
     return
   end
 
-  local latest_version = parseVersion(parsed_data.tag_name)
-  local current_version = tonumber(meta.version)
-  if not latest_version or not current_version then return end
-
   -- Show notification to the user if a new version is available
-  if current_version < latest_version then
+  if isNewer(parsed_data.tag_name, tostring(meta.version)) then
     local message = "A new version of the app (" .. parsed_data.tag_name .. ") is available. Please update!"
     UIManager:show(InfoMessage:new{
       text = message,
@@ -55,5 +64,6 @@ local function checkForUpdates()
 end
 
 return {
-  checkForUpdates = checkForUpdates
+  checkForUpdates = checkForUpdates,
+  isNewer = isNewer,
 }

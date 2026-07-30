@@ -107,6 +107,13 @@ annotations[1].note = "my thought, revised"
 check("edited annotation re-dirties", History.mirrorAnnotations(BOOK, annotations) == 1)
 check("only the edited one is dirty", #History.getDirtyItems(0, 25).records == 1)
 
+History.markSynced("item", History.getDirtyItems(0, 25).ids)
+annotations[1].note = "my thought, rewrite"
+check("same-length edit re-dirties", History.mirrorAnnotations(BOOK, annotations) == 1)
+History.markSynced("item", History.getDirtyItems(0, 25).ids)
+annotations[1].chapter = "A new chapter"
+check("chapter edit re-dirties", History.mirrorAnnotations(BOOK, annotations) == 1)
+
 -- batching and keyset pagination
 print("\nbatching")
 ko.reset()

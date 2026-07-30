@@ -288,9 +288,14 @@ function History.mirrorAnnotations(book, annotations)
             -- Page-only bookmarks carry no highlighted text; nothing to mirror.
             if annotation.text and annotation.text ~= "" and annotation.datetime then
                 local note = History.stripAiNote(annotation.note)
-                -- Cheap change detection: lengths plus content, no hashing library
-                local hash = string.format("%d/%d/%s", #annotation.text, #(note or ""),
-                    tostring(annotation.pageno))
+                local fields = {
+                    annotation.text, note or "", annotation.chapter or "",
+                    tostring(annotation.pageno or ""),
+                }
+                for i, value in ipairs(fields) do
+                    fields[i] = #value .. ":" .. value
+                end
+                local hash = table.concat(fields, "|")
                 local existing = select_stmt:reset():bind(book_id, annotation.datetime):step()
                 if not existing then
                     insert_stmt:reset():bind(book_id, annotation.datetime, annotation.text,

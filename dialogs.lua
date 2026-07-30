@@ -46,7 +46,7 @@ end
 -- Runs a blocking query behind a "Loading..." message, then hands the answer to
 -- on_answer. Any failure is reported to the user instead of raising, because an
 -- uncaught error in a scheduled task terminates KOReader.
-local function runQuery(loading_text, message_history, on_answer)
+local function runQuery(loading_text, message_history, on_answer, on_error)
   local loading = InfoMessage:new{ text = loading_text }
   UIManager:show(loading)
   -- Get the message on screen before we block on the network
@@ -57,6 +57,7 @@ local function runQuery(loading_text, message_history, on_answer)
     UIManager:close(loading)
 
     if not answer then
+      if on_error then on_error() end
       showError(_("Could not get a response:") .. "\n\n" .. tostring(err))
       return
     end
@@ -111,6 +112,8 @@ local function showViewer(viewer_title, highlightedText, message_history, conver
         })
       end
       chatgpt_viewer:update(createResultText(highlightedText, message_history))
+    end, function()
+      table.remove(message_history)
     end)
   end
 

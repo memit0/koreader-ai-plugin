@@ -19,6 +19,7 @@ local History = require("history")
 local UIManager = require("ui/uimanager")
 local InfoMessage = require("ui/widget/infomessage")
 local http = require("socket.http")
+local https = require("ssl.https")
 local ltn12 = require("ltn12")
 local json = require("json")
 local socketutil = require("socketutil")
@@ -61,7 +62,8 @@ local function post(path, body, token)
 
     local sink = {}
     socketutil:set_timeout(socketutil.LARGE_BLOCK_TIMEOUT, socketutil.LARGE_TOTAL_TIMEOUT)
-    local ok, res, code = pcall(http.request, {
+    local request = endpoint():match("^https://") and https.request or http.request
+    local ok, res, code = pcall(request, {
         url = endpoint() .. path,
         method = "POST",
         headers = headers,

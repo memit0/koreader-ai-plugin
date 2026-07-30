@@ -24,6 +24,16 @@ local function fake_request(reqt)
     return 1, M.http.status, {}, ""
 end
 
+local function fake_http_request(reqt)
+    M.http.transport = "http"
+    return fake_request(reqt)
+end
+
+local function fake_https_request(reqt)
+    M.http.transport = "https"
+    return fake_request(reqt)
+end
+
 local Widget = {}
 function Widget:extend(o)
     o = o or {}
@@ -85,8 +95,8 @@ local modules = {
                          return { name = name, payload = payload }
                      end },
     ["ui/network/manager"] = { runWhenOnline = function(_, cb) cb() end },
-    ["socket.http"] = { request = fake_request },
-    ["ssl.https"] = { request = fake_request },
+    ["socket.http"] = { request = fake_http_request },
+    ["ssl.https"] = { request = fake_https_request },
     ["ltn12"] = { source = { string = function(s) return s end } },
     ["socketutil"] = {
         set_timeout = function() end, reset_timeout = function() end,
@@ -136,11 +146,11 @@ end
 function M.reset()
     os.execute("rm -rf " .. SCRATCH .. "/dbdir && mkdir -p " .. SCRATCH .. "/dbdir")
     M.http.status, M.http.response = 200, {}
-    M.http.sent, M.http.fail_after, M.http.calls = {}, nil, 0
+    M.http.sent, M.http.fail_after, M.http.calls, M.http.transport = {}, nil, 0, nil
     M.shown, M.ticks, M.events = {}, {}, {}
     modules["configuration"].features = {}
     for _, name in ipairs({ "history", "sync", "annotations", "dialogs", "env",
-                            "gpt_query", "history_browser", "main" }) do
+                            "gpt_query", "history_browser", "main", "update_checker" }) do
         package.loaded[name] = nil
     end
 end

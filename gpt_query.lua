@@ -144,7 +144,7 @@ local function queryChatGPT(message_history)
 
   -- Optional attribution headers, used by OpenRouter for its app rankings
   if api_url:find("openrouter.ai", 1, true) then
-    headers["HTTP-Referer"] = "https://github.com/drewbaumann/AskGPT"
+    headers["HTTP-Referer"] = "https://github.com/memit0/koreader-ai-plugin"
     headers["X-Title"] = "AskGPT for KOReader"
   end
 

@@ -1,0 +1,25 @@
+name: Release plugin
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y luajit lua-sql-sqlite3
+      - run: ./test/run.sh
+      - name: Package
+        run: |
+          mkdir askgpt.koplugin
+          cp *.lua askgpt.koplugin/
+          cp LICENSE README.md askgpt.koplugin/
+          zip -r askgpt.koplugin.zip askgpt.koplugin
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: askgpt.koplugin.zip
