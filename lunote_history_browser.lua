@@ -50,7 +50,7 @@ local function showConversations(book)
     local menu
     local items = {}
 
-    for _, conversation in ipairs(conversations) do
+    for _i, conversation in ipairs(conversations) do
         items[#items + 1] = {
             text = string.format("%s  %s", formatDate(conversation.created_at),
                 truncate(conversation.highlight, 60)),
@@ -92,7 +92,7 @@ function HistoryBrowser.show()
     local menu
     local items = {}
 
-    for _, book in ipairs(books) do
+    for _i, book in ipairs(books) do
         local conversation_count = tonumber(book.n_conversations) or 0
         local item_count = tonumber(book.n_items) or 0
         items[#items + 1] = {

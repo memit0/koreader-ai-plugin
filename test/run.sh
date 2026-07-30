@@ -23,7 +23,7 @@ if [ -z "$lua" ]; then
 fi
 
 status=0
-for spec in history_spec.lua sync_spec.lua explain_spec.lua failures_spec.lua update_spec.lua; do
+for spec in history_spec.lua sync_spec.lua explain_spec.lua failures_spec.lua update_spec.lua cover_spec.lua history_browser_spec.lua; do
     output=$("$lua" "$spec" 2>&1)
     summary=$(echo "$output" | grep -E '^[0-9]+ passed')
     if echo "$output" | grep -q "FAIL"; then
