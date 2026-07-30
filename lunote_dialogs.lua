@@ -1,4 +1,6 @@
 local ConversationViewer = require("lunote_viewer")
+local InputDialog = require("ui/widget/inputdialog")
+local NetworkMgr = require("ui/network/manager")
 local UIManager = require("ui/uimanager")
 local InfoMessage = require("ui/widget/infomessage")
 local _ = require("gettext")
@@ -6,15 +8,10 @@ local _ = require("gettext")
 local queryModel = require("lunote_query")
 local Annotations = require("lunote_annotations")
 local History = require("lunote_history")
+local Sync = require("lunote_sync")
+local Env = require("lunote_env")
 
-local CONFIGURATION = nil
-
-local success, result = pcall(function() return require("lunote_config") end)
-if success then
-  CONFIGURATION = result
-else
-  print("lunote_config.lua not found, skipping...")
-end
+local CONFIGURATION = Env.loadOptional("lunote_config")
 
 -- What the assistant is told to do with a highlight. Override it by setting
 -- features.explain_prompt in lunote_config.lua.
@@ -205,8 +202,46 @@ local function isTranslationEnabled()
   return getFeature("translate_to") ~= nil
 end
 
+local function showPairingDialog()
+  local dialog
+  dialog = InputDialog:new{
+    title = _("Pair with the web app"),
+    description = _("Enter the code shown on the web app."),
+    input = "",
+    input_type = "text",
+    buttons = {
+      {
+        {
+          text = _("Cancel"),
+          callback = function() UIManager:close(dialog) end,
+        },
+        {
+          text = _("Pair"),
+          is_enter_default = true,
+          callback = function()
+            local code = dialog:getInputText()
+            UIManager:close(dialog)
+            if not code or code == "" then return end
+            NetworkMgr:runWhenOnline(function()
+              local ok, err = Sync.pair(code)
+              UIManager:show(InfoMessage:new{
+                text = ok and _("Paired. You can sync now.")
+                  or (_("Could not pair:") .. "\n\n" .. tostring(err)),
+                timeout = ok and 3 or 10,
+              })
+            end)
+          end,
+        },
+      },
+    },
+  }
+  UIManager:show(dialog)
+  dialog:onShowKeyboard()
+end
+
 return {
   explain = explainHighlight,
   translate = translateHighlight,
   isTranslationEnabled = isTranslationEnabled,
+  showPairingDialog = showPairingDialog,
 }

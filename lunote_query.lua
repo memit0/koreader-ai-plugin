@@ -6,24 +6,11 @@ local socketutil = require("socketutil")
 
 local Env = require("lunote_env")
 
-local api_key = nil
-local CONFIGURATION = nil
+-- IN A LATER VERSION, THIS WILL BE REMOVED
+local api_key_module = Env.loadOptional("api_key")
+local api_key = api_key_module and api_key_module.key
 
--- Attempt to load the api_key module. IN A LATER VERSION, THIS WILL BE REMOVED
-local success, result = pcall(function() return require("api_key") end)
-if success then
-  api_key = result.key
-else
-  print("api_key.lua not found, skipping...")
-end
-
--- Attempt to load the configuration module
-success, result = pcall(function() return require("lunote_config") end)
-if success then
-  CONFIGURATION = result
-else
-  print("lunote_config.lua not found, skipping...")
-end
+local CONFIGURATION = Env.loadOptional("lunote_config")
 
 -- The request blocks the UI, so cap how long we are willing to wait.
 local BLOCK_TIMEOUT = 30

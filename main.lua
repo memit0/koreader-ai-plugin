@@ -1,5 +1,4 @@
 local InputContainer = require("ui/widget/container/inputcontainer")
-local InputDialog = require("ui/widget/inputdialog")
 local NetworkMgr = require("ui/network/manager")
 local UIManager = require("ui/uimanager")
 local InfoMessage = require("ui/widget/infomessage")
@@ -76,43 +75,6 @@ function Lunote:onCloseDocument()
   Annotations.mirror(self.ui)
 end
 
-local function showPairingDialog()
-  local dialog
-  dialog = InputDialog:new{
-    title = _("Pair with the web app"),
-    description = _("Enter the code shown on the web app."),
-    input = "",
-    input_type = "text",
-    buttons = {
-      {
-        {
-          text = _("Cancel"),
-          callback = function() UIManager:close(dialog) end,
-        },
-        {
-          text = _("Pair"),
-          is_enter_default = true,
-          callback = function()
-            local code = dialog:getInputText()
-            UIManager:close(dialog)
-            if not code or code == "" then return end
-            NetworkMgr:runWhenOnline(function()
-              local ok, err = Sync.pair(code)
-              UIManager:show(InfoMessage:new{
-                text = ok and _("Paired. You can sync now.")
-                  or (_("Could not pair:") .. "\n\n" .. tostring(err)),
-                timeout = ok and 3 or 10,
-              })
-            end)
-          end,
-        },
-      },
-    },
-  }
-  UIManager:show(dialog)
-  dialog:onShowKeyboard()
-end
-
 function Lunote:addToMainMenu(menu_items)
   menu_items.lunote = {
     text = _("Lunote"),
@@ -144,7 +106,7 @@ function Lunote:addToMainMenu(menu_items)
             Sync.unpair()
             UIManager:show(InfoMessage:new{ text = _("Unpaired."), timeout = 3 })
           else
-            showPairingDialog()
+            Dialogs.showPairingDialog()
           end
           if touchmenu_instance then touchmenu_instance:updateItems() end
         end,

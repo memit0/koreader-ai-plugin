@@ -66,4 +66,13 @@ function Env.get(name)
   return value
 end
 
+--- Loads an optional module by name, returning nil (and logging once) if it
+--- is not present. Never raises.
+function Env.loadOptional(name)
+  local ok, result = pcall(function() return require(name) end)
+  if ok then return result end
+  print(name .. ".lua not found, skipping...")
+  return nil
+end
+
 return Env
