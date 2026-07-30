@@ -34,12 +34,12 @@ holds full transcripts (including follow-up questions) and the sync outbox.
 | File | Role |
 | --- | --- |
 | `main.lua` | Plugin entry: highlight button, main menu, mirror-on-close |
-| `dialogs.lua` | The Explain flow and the result viewer |
-| `gpt_query.lua` | Provider resolution and the API call |
-| `annotations.lua` | Writes the explanation into the book's annotation |
-| `history.lua` | SQLite store, annotation mirror, outbox queries |
-| `sync.lua` | Batched, resumable push to the web app |
-| `env.lua` | Reads `.env` (KOReader has no dotenv) |
+| `lunote_dialogs.lua` | The Explain flow and the result viewer |
+| `lunote_query.lua` | Provider resolution and the API call |
+| `lunote_annotations.lua` | Writes the explanation into the book's annotation |
+| `lunote_history.lua` | SQLite store, annotation mirror, outbox queries |
+| `lunote_sync.lua` | Batched, resumable push to the web app |
+| `lunote_env.lua` | Reads `.env` (KOReader has no dotenv) |
 
 ## Invariants — breaking these causes real damage
 
