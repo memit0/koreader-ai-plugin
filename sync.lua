@@ -31,7 +31,7 @@ local Env = require("env")
 local Sync = {}
 
 local BATCH_SIZE = 25
-local DEFAULT_ENDPOINT = "https://askgpt-notes.vercel.app"
+local DEFAULT_ENDPOINT = "https://koreader-ai-plugin-webapp.vercel.app"
 
 local function endpoint()
     return History.getState("endpoint") or Env.get("ASKGPT_SYNC_URL") or DEFAULT_ENDPOINT
