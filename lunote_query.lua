@@ -5,6 +5,7 @@ local json = require("json")
 local socketutil = require("socketutil")
 
 local Env = require("lunote_env")
+local Sync = require("lunote_sync")
 
 -- IN A LATER VERSION, THIS WILL BE REMOVED
 local api_key_module = Env.loadOptional("api_key")
@@ -40,9 +41,24 @@ end
 
 -- Precedence is the same for every setting: lunote_config.lua, then .env,
 -- then the default.
+--
+-- Above all of it sits managed mode, but only when nothing local is configured.
+-- A key the reader put there themselves always wins: somebody who has both a
+-- subscription and their own key keeps paying their own provider, and a working
+-- free setup can never silently start spending someone else's money.
 local function resolveSettings()
   local api_key_value = configuredKey() or Env.get(PROVIDER.env_key) or api_key
   local api_url = (CONFIGURATION and CONFIGURATION.base_url) or PROVIDER.base_url
+
+  if not api_key_value and not (CONFIGURATION and CONFIGURATION.base_url) then
+    local managed_url = Sync.getManagedUrl()
+    if managed_url then
+      -- The token from pairing is the credential; the web app picks the model,
+      -- so we deliberately send none.
+      return PROVIDER, Sync.getToken(), managed_url, nil
+    end
+  end
+
   local model = (CONFIGURATION and CONFIGURATION.model)
     or Env.get(PROVIDER.env_model)
     or Env.get("AI_MODEL")
@@ -69,8 +85,10 @@ local function queryModel(message_history)
 
   if not api_key_value then
     return nil, string.format(
-      "No API key found. Put %s=... in a .env file in the lunote.koplugin directory, "
-        .. "or set api_key in lunote_config.lua.", provider.env_key)
+      "No API key found. Either pair this device with the web app "
+        .. "(Menu > Lunote > Pair with web app) and subscribe there, or put "
+        .. "%s=... in a .env file in the lunote.koplugin directory.",
+      provider.env_key)
   end
 
   -- Determine whether to use http or https

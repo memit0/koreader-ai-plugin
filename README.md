@@ -10,6 +10,14 @@ Get [KoReader](https://github.com/koreader/koreader) installed on your e-reader.
 
 If you want to do this on a Kindle, you are going to have to jailbreak it. I recommend following [this guide](https://www.mobileread.com/forums/showthread.php?t=320564) to jailbreak your Kindle.
 
+Then set up explanations, either way round.
+
+### Either: pair with the web app
+
+Subscribe at [lunote.xyz](https://lunote.xyz), then **Menu → Lunote → Pair with web app** and type the six characters the site shows you. That is the whole setup — explanations are generated for you, so there is no API key to obtain and no file to edit on the device. Your allowance is capped, so it cannot run up a bill.
+
+### Or: bring your own API key
+
 Get an [OpenRouter API key](https://openrouter.ai/keys) and put it in a `.env` file inside the `lunote.koplugin` directory — copy `.env.sample` and fill in your key:
 
 ```sh
@@ -23,6 +31,8 @@ OPENROUTER_MODEL=google/gemini-2.5-flash
 ```
 
 > **Note:** `.env` is gitignored, so your key stays out of version control. Edits to it are picked up when KOReader restarts.
+
+A key you configure yourself always wins. If you have both a subscription and your own key, the plugin keeps using yours, so a working setup never quietly starts spending someone else's credit. The same goes for a custom `base_url` — point the plugin at a local model and it stays pointed there.
 
 ### Other endpoints
 

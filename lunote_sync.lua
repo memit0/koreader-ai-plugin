@@ -46,6 +46,30 @@ function Sync.isConfigured()
     return token ~= nil and token ~= ""
 end
 
+-- The server tells us how explanations should be generated for this account:
+-- once when pairing, and again with every sync, because a plan can start or
+-- lapse long after the device was paired. "managed" means the pairing token is
+-- also the credential, and there is no API key to configure.
+local function rememberAiConfig(response)
+    local ai = response and response.ai
+    if type(ai) ~= "table" then return end
+    if ai.mode == "managed" and type(ai.url) == "string" and ai.url ~= "" then
+        History.setState("ai_mode", "managed")
+        History.setState("ai_url", ai.url)
+    else
+        History.setState("ai_mode", "")
+    end
+end
+
+--- Where to send explanations when the web app is generating them for us, or nil
+--- when this device should be using its own key.
+function Sync.getManagedUrl()
+    if History.getState("ai_mode") ~= "managed" then return nil end
+    local url = History.getState("ai_url")
+    if not url or url == "" then return nil end
+    return url
+end
+
 -- One JSON request, with the same timeouts KOReader's own exporters use. Returns
 -- the decoded body, or nil plus a message. Never raises.
 local function post(path, body, token)
@@ -102,11 +126,19 @@ function Sync.pair(code)
     if not response then return nil, err end
     if not response.token then return nil, "The server did not return a token." end
     History.setState("token", response.token)
+    -- On a paid account this is the entire setup: the reply to six typed
+    -- characters carries both the credential and where to use it, so nothing has
+    -- to be written into a file on the device.
+    rememberAiConfig(response)
     return true
 end
 
 function Sync.unpair()
     History.setState("token", "")
+    -- The token was the credential for managed explanations too, so unpairing
+    -- has to put the device back on its own key rather than leave it pointing at
+    -- an endpoint it can no longer authenticate to.
+    History.setState("ai_mode", "")
 end
 
 -- Drives one table's outbox to completion, a batch at a time. `progress` is
@@ -122,6 +154,7 @@ local function pushTable(table_name, fetch, token, progress)
 
         local response, err = post("/api/v1/sync", payload, token)
         if not response then return sent, err end
+        rememberAiConfig(response)
 
         -- Only now is it safe to clear the flags
         History.markSynced(table_name, batch.ids)
