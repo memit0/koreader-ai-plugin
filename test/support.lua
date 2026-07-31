@@ -17,6 +17,11 @@ M.ticks = {}
 
 local function fake_request(reqt)
     M.http.calls = M.http.calls + 1
+    -- Where a request went, and with what credential, matters as much as its
+    -- body now that explanations can be routed either to a provider directly or
+    -- to the web app.
+    M.http.url = reqt.url
+    M.http.headers = reqt.headers
     if M.http.fail_after and M.http.calls > M.http.fail_after then
         return nil, "connection reset"
     end
@@ -159,6 +164,7 @@ function M.reset()
     os.execute("rm -rf " .. SCRATCH .. "/dbdir && mkdir -p " .. SCRATCH .. "/dbdir")
     M.http.status, M.http.response = 200, {}
     M.http.sent, M.http.fail_after, M.http.calls, M.http.transport = {}, nil, 0, nil
+    M.http.url, M.http.headers = nil, nil
     M.shown, M.ticks, M.events = {}, {}, {}
     modules["lunote_config"].features = {}
     for _, name in ipairs({ "lunote_history", "lunote_sync", "lunote_annotations", "lunote_dialogs", "lunote_env",
