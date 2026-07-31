@@ -24,10 +24,6 @@ OPENROUTER_MODEL=google/gemini-2.5-flash
 
 > **Note:** `.env` is gitignored, so your key stays out of version control. Edits to it are picked up when KOReader restarts.
 
-### Using OpenAI instead
-
-Set `OPENAI_API_KEY` in `.env` rather than `OPENROUTER_API_KEY` and the plugin talks to OpenAI directly, defaulting to `gpt-4o-mini`. If both keys are present, OpenRouter wins; set `provider = "openai"` in `lunote_config.lua` to force the other way.
-
 ### Other endpoints
 
 `lunote_config.lua` is optional and overrides both `.env` and the defaults — copy `lunote_config.lua.sample` if you need it. Anything speaking the OpenAI chat-completions dialect works, so you can point the plugin at a local model served by [Ollama](https://ollama.com/blog/openai-compatibility):

@@ -16,25 +16,16 @@ local CONFIGURATION = Env.loadOptional("lunote_config")
 local BLOCK_TIMEOUT = 30
 local TOTAL_TIMEOUT = 120
 
--- Both endpoints speak the OpenAI chat-completions dialect, so the only thing
--- that differs is where the key comes from and what a sensible model is called.
-local PROVIDERS = {
-  openrouter = {
-    env_key = "OPENROUTER_API_KEY",
-    env_model = "OPENROUTER_MODEL",
-    base_url = "https://openrouter.ai/api/v1/chat/completions",
-    -- Cheap, fast and more than good enough to explain a paragraph of prose.
-    model = "google/gemini-2.5-flash-lite",
-  },
-  openai = {
-    env_key = "OPENAI_API_KEY",
-    env_model = "OPENAI_MODEL",
-    base_url = "https://api.openai.com/v1/chat/completions",
-    model = "gpt-4o-mini",
-  },
+-- OpenRouter speaks the OpenAI chat-completions dialect, so base_url can be
+-- overridden in lunote_config.lua to point at anything else that does too
+-- (a local Ollama, or any other OpenAI-compatible endpoint).
+local PROVIDER = {
+  env_key = "OPENROUTER_API_KEY",
+  env_model = "OPENROUTER_MODEL",
+  base_url = "https://openrouter.ai/api/v1/chat/completions",
+  -- Cheap, fast and more than good enough to explain a paragraph of prose.
+  model = "google/gemini-2.5-flash-lite",
 }
-
-local PROVIDER_ORDER = { "openrouter", "openai" }
 
 local PLACEHOLDER_KEYS = {
   ["YOUR_API_KEY"] = true,
@@ -47,35 +38,16 @@ local function configuredKey()
   return key
 end
 
-local function resolveProvider()
-  local name = CONFIGURATION and CONFIGURATION.provider
-  if name and PROVIDERS[name] then
-    return PROVIDERS[name]
-  end
-  -- A key in lunote_config.lua predates OpenRouter support, so honour the
-  -- endpoint those setups have always used.
-  if configuredKey() then
-    return PROVIDERS.openai
-  end
-  for _, candidate in ipairs(PROVIDER_ORDER) do
-    if Env.get(PROVIDERS[candidate].env_key) then
-      return PROVIDERS[candidate]
-    end
-  end
-  return PROVIDERS.openrouter
-end
-
 -- Precedence is the same for every setting: lunote_config.lua, then .env,
--- then the provider's default.
+-- then the default.
 local function resolveSettings()
-  local provider = resolveProvider()
-  local api_key_value = configuredKey() or Env.get(provider.env_key) or api_key
-  local api_url = (CONFIGURATION and CONFIGURATION.base_url) or provider.base_url
+  local api_key_value = configuredKey() or Env.get(PROVIDER.env_key) or api_key
+  local api_url = (CONFIGURATION and CONFIGURATION.base_url) or PROVIDER.base_url
   local model = (CONFIGURATION and CONFIGURATION.model)
-    or Env.get(provider.env_model)
+    or Env.get(PROVIDER.env_model)
     or Env.get("AI_MODEL")
-    or provider.model
-  return provider, api_key_value, api_url, model
+    or PROVIDER.model
+  return PROVIDER, api_key_value, api_url, model
 end
 
 -- Turn whatever the API sent back into something worth showing the user.
