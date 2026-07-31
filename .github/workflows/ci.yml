@@ -1,0 +1,18 @@
+name: Tests
+
+# The suite previously ran only inside the release job, which meant a broken
+# test surfaced when cutting a tag rather than when the change was proposed.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Same toolchain the release job installs: luajit because KOReader uses
+      # LuaJIT, and luasql-sqlite3 standing in for lua-ljsqlite3.
+      - run: sudo apt-get update && sudo apt-get install -y luajit lua-sql-sqlite3
+      - run: ./test/run.sh
