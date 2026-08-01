@@ -446,6 +446,14 @@ function History.countDirty()
     end)
 end
 
+function History.hasPendingCovers()
+    return withConn(function(conn)
+        return (tonumber(conn:rowexec([[
+            SELECT COUNT(*) FROM book WHERE cover_png IS NOT NULL AND cover_sent = 0;
+        ]])) or 0) > 0
+    end)
+end
+
 function History.getState(key)
     return withConn(function(conn) return getStateIn(conn, key) end)
 end
@@ -497,6 +505,32 @@ local function bookRefs(conn, book_ids)
         end
     end
     return refs, cover_ids
+end
+
+--- One page of covers which are not already riding with dirty records.
+function History.getPendingCovers(after_id, limit)
+    return withConn(function(conn)
+        local stmt = conn:prepare([[
+            SELECT id, uuid, title, authors, md5, cover_png
+            FROM book
+            WHERE cover_png IS NOT NULL AND cover_sent = 0 AND id > ?
+            ORDER BY id LIMIT ?;
+        ]])
+        local books, ids, cursor = {}, {}, after_id or 0
+        stmt:reset():bind(after_id or 0, limit or 25)
+        local row = stmt:step()
+        while row do
+            local id = tonumber(row[1])
+            ids[#ids + 1] = id
+            cursor = id
+            books[#books + 1] = {
+                uuid = row[2], title = row[3], authors = row[4], md5 = row[5],
+                cover_base64 = require("mime").b64(row[6]),
+            }
+            row = stmt:step()
+        end
+        return { books = books, ids = ids, cursor = cursor }
+    end)
 end
 
 --- One page of unsynced annotations. Returns the records, the books they belong

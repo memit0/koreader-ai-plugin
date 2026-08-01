@@ -142,4 +142,30 @@ Sync.run{ done = function(n, e) sent, sync_err = n, e end }
 check("server error reported", sync_err ~= nil, sync_err)
 check("nothing marked synced on server error", History.countDirty() == 5, History.countDirty())
 
+print("\ncover-only sync")
+ko.reset()
+History = require("lunote_history")
+Sync = require("lunote_sync")
+local cover_book = { title = "Covered", authors = "Author", md5 = "cover-md5",
+    file = "/covered.epub", cover_png = "PNG" }
+History.mirrorAnnotations(cover_book, {})
+History.setState("token", "t")
+check("cover can be pending without dirty records", History.countDirty() == 0
+    and History.hasPendingCovers())
+
+ko.http.response = { accepted = 0 }
+Sync.run{ done = function(n, e) sent, sync_err = n, e end }
+check("cover-only sync reports one sent", sent == 1 and sync_err == nil, sent)
+check("cover-only request contains no fake records", #ko.http.sent == 1
+    and ko.http.sent[1].items == nil and ko.http.sent[1].conversations == nil)
+check("cover-only request carries the book cover", #ko.http.sent[1].books == 1
+    and ko.http.sent[1].books[1].cover_base64 ~= nil)
+check("acknowledged cover is no longer pending", not History.hasPendingCovers())
+
+History.mirrorAnnotations(cover_book, {})
+ko.http.status = 500
+Sync.run{ done = function(n, e) sent, sync_err = n, e end }
+check("failed cover-only sync is reported", sent == 0 and sync_err ~= nil, sync_err)
+check("failed cover remains pending for retry", History.hasPendingCovers())
+
 ko.summary()

@@ -7,6 +7,8 @@ rather than keeping one around, so this runs at document-close time, once per bo
 with no extractable cover.
 ]]
 local DataStorage = require("datastorage")
+local Device = require("device")
+local logger = require("logger")
 
 local Cover = {}
 
@@ -35,10 +37,15 @@ function Cover.extract(document)
     end
     local source = scaled or bb
 
-    local ok_write = pcall(function() source:writePNG(TMP_PATH) end)
+    -- getCoverPageImage returns a blitbuffer; KOReader's framebuffer owns the
+    -- PNG encoder and accepts the source buffer as its third argument.
+    local ok_write, write_err = pcall(function()
+        Device.screen.bb:writePNG(TMP_PATH, false, source)
+    end)
     if scaled then scaled:free() end
     if not ok_write then
         os.remove(TMP_PATH)
+        logger.warn("Lunote cover: could not encode PNG:", tostring(write_err))
         return nil
     end
 
