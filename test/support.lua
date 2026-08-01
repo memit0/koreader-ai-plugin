@@ -115,6 +115,7 @@ local modules = {
     ["socket.http"] = { request = fake_http_request },
     ["ssl.https"] = { request = fake_https_request },
     ["ltn12"] = { source = { string = function(s) return s end } },
+    ["mime"] = { b64 = function(s) return "base64:" .. s end },
     ["socketutil"] = {
         set_timeout = function() end, reset_timeout = function() end,
         LARGE_BLOCK_TIMEOUT = 10, LARGE_TOTAL_TIMEOUT = 30,
