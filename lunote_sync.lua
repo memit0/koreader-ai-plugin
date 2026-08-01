@@ -169,6 +169,24 @@ local function pushTable(table_name, fetch, token, progress)
     end
 end
 
+local function pushCovers(token, progress)
+    local cursor, sent = 0, 0
+    while true do
+        local batch = History.getPendingCovers(cursor, BATCH_SIZE)
+        if not batch or #batch.books == 0 then return sent end
+
+        local response, err = post("/api/v1/sync", { books = batch.books }, token)
+        if not response then return sent, err end
+        rememberAiConfig(response)
+        History.markCoverSent(batch.ids)
+        sent = sent + #batch.books
+        cursor = batch.cursor
+
+        if progress and progress(sent) == false then return sent, "cancelled" end
+        if #batch.books < BATCH_SIZE then return sent end
+    end
+end
+
 --- Pushes everything outstanding. `callbacks.progress(n)` may return false to stop
 --- at the next batch boundary; `callbacks.done(sent, err)` gets the outcome.
 function Sync.run(callbacks)
@@ -189,12 +207,20 @@ function Sync.run(callbacks)
 
     local sent_conversations, conversation_err =
         pushTable("conversation", History.getDirtyConversations, token, callbacks.progress)
+    if conversation_err then
+        if callbacks.done then callbacks.done(sent_items + sent_conversations, conversation_err) end
+        return
+    end
 
-    if not conversation_err then
+    -- Existing books can gain a cover without changing any annotation. Send
+    -- those books on their own after normal batches have claimed their covers.
+    local sent_covers, cover_err = pushCovers(token, callbacks.progress)
+
+    if not cover_err then
         History.setState("last_sync_at", os.time())
     end
     if callbacks.done then
-        callbacks.done(sent_items + sent_conversations, conversation_err)
+        callbacks.done(sent_items + sent_conversations + sent_covers, cover_err)
     end
 end
 
@@ -202,7 +228,7 @@ end
 --- reader never appears frozen.
 function Sync.runInteractive()
     local outstanding = History.countDirty() or 0
-    if outstanding == 0 then
+    if outstanding == 0 and not History.hasPendingCovers() then
         UIManager:show(InfoMessage:new{ text = _("Everything is already synced."), timeout = 3 })
         return
     end

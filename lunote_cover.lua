@@ -7,6 +7,7 @@ rather than keeping one around, so this runs at document-close time, once per bo
 with no extractable cover.
 ]]
 local DataStorage = require("datastorage")
+local logger = require("logger")
 
 local Cover = {}
 
@@ -23,7 +24,10 @@ function Cover.extract(document)
     if not ok or not bb then return nil end
 
     local w, h = bb:getWidth(), bb:getHeight()
-    if w <= 0 or h <= 0 then return nil end
+    if w <= 0 or h <= 0 then
+        bb:free()
+        return nil
+    end
 
     local scaled
     if w > MAX_DIMENSION or h > MAX_DIMENSION then
@@ -35,15 +39,21 @@ function Cover.extract(document)
     end
     local source = scaled or bb
 
-    local ok_write = pcall(function() source:writePNG(TMP_PATH) end)
-    if scaled then scaled:free() end
+    os.remove(TMP_PATH)
+    local ok_write, write_err = pcall(function() source:writePNG(TMP_PATH) end)
+    source:free()
+    if scaled then bb:free() end
     if not ok_write then
         os.remove(TMP_PATH)
+        logger.warn("Lunote cover: could not encode PNG:", tostring(write_err))
         return nil
     end
 
     local file = io.open(TMP_PATH, "rb")
-    if not file then return nil end
+    if not file then
+        logger.warn("Lunote cover: PNG encoder did not create a file")
+        return nil
+    end
     local bytes = file:read("*a")
     file:close()
     os.remove(TMP_PATH)

@@ -21,6 +21,7 @@ local function fakeImage(w, h, opts)
         return fakeImage(nw, nh, opts)
     end
     function bb:writePNG(path)
+        if opts.skip_write then return end
         if opts.fail_write then
             local f = io.open(path, "wb")
             if f then f:write("partial"); f:close() end
@@ -57,8 +58,10 @@ do
 end
 
 do
-    local bytes = Cover.extract(makeDocument(fakeImage(300, 200)))
+    local image = fakeImage(300, 200)
+    local bytes = Cover.extract(makeDocument(image))
     check("an in-bounds image is not scaled", bytes == "300x200", bytes)
+    check("an in-bounds image is freed", image.freed)
 end
 
 do
@@ -67,6 +70,12 @@ do
     -- long side 800 -> scaled to MAX_DIMENSION, short side scaled proportionally
     local expected = string.format("%dx%d", MAX_DIMENSION, math.floor(400 * (MAX_DIMENSION / 800)))
     check("an oversized image is scaled to fit MAX_DIMENSION", bytes == expected, bytes)
+    check("an oversized original image is freed", image.freed)
+end
+
+do
+    local bytes = Cover.extract(makeDocument(fakeImage(300, 200, { skip_write = true })))
+    check("a silent PNG encoder failure returns nil", bytes == nil, bytes)
 end
 
 do
