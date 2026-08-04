@@ -8,6 +8,7 @@ local HERE = debug.getinfo(1, "S").source:sub(2):match("^(.*)[/\\][^/\\]*$") or 
 local ko = dofile(HERE .. "/kosim.lua")
 
 local History = require("lunote_history")
+local Obsidian = require("lunote_obsidian")
 local Sync = require("lunote_sync")
 
 local state = { book = nil, ui = nil, plugin = nil, instance = nil, selection = nil }
@@ -148,6 +149,11 @@ commands.help = function()
     pair <code>               pair against the sync endpoint
     sync                      push everything outstanding
     sql <query>               run SQL against the store
+
+  obsidian
+    vault [path]              show or set the vault folder (default: dev/data/vault)
+    obsidian                  write the notes that are out of date
+    note [book n]             print the note as it stands in the vault
 
   the model
     mock [on|off]             mock LLM (on by default: no key, no cost)
@@ -308,6 +314,8 @@ commands.status = function()
     say("  paired     " .. (token and token ~= "" and ("yes (" .. token:sub(1, 8) .. "…)") or "no"))
     say("  last sync  " .. tostring(History.getState("last_sync_at") or "never"))
     say("  pending    " .. tostring(History.countDirty()))
+    say("  vault      " .. tostring(Obsidian.getVaultPath() or "(not set)"))
+    say("  notes due  " .. tostring(Obsidian.countPending()))
 end
 
 commands.pair = function(argument)
@@ -327,6 +335,52 @@ commands.sync = function()
         end,
     }
     if not finished then say("sync did not report completion") end
+end
+
+commands.vault = function(argument)
+    if argument and argument ~= "" then
+        local vault, err = Obsidian.setVaultPath(argument)
+        say(vault and ("vault set to " .. vault) or ("could not use that folder: " .. tostring(err)))
+        return
+    end
+    local vault = Obsidian.getVaultPath()
+    if not vault then
+        -- A default under the data directory, so `vault` on its own is enough to
+        -- start writing notes and looking at them.
+        vault = select(1, Obsidian.setVaultPath(ko.DATA .. "/vault"))
+        say("vault set to " .. tostring(vault) .. "  (pass a path to change it)")
+    end
+    say("  vault      " .. tostring(vault))
+    say("  folder     " .. (Obsidian.getFolder() ~= "" and Obsidian.getFolder() or "(vault root)"))
+    say("  on close   " .. (Obsidian.isAutoExportEnabled() and "writes" or "off"))
+    say("  pending    " .. tostring(Obsidian.countPending()))
+end
+
+commands.obsidian = function()
+    if not Obsidian.isConfigured() then
+        say("no vault set — run `vault` first")
+        return
+    end
+    local written, err = Obsidian.exportPending(function(count) say("  … " .. count .. " written") end)
+    say(err and string.format("stopped after %d: %s", written, tostring(err))
+        or string.format("wrote %d note(s) to %s", written, tostring(Obsidian.getVaultPath())))
+end
+
+commands.note = function(argument)
+    local vault = Obsidian.getVaultPath()
+    if not vault then say("no vault set — run `vault` first") return end
+    local position = tonumber(argument) or 1
+    local books = History.listBooks() or {}
+    local book = books[position]
+    if not book then say("no book " .. tostring(position) .. " — try `books`") return end
+    local stored = History.getObsidianBook(book.id)
+    local relative = stored and stored.obsidian_path
+    if not relative then say("no note written yet — try `obsidian`") return end
+    local file = io.open(vault .. "/" .. relative, "r")
+    if not file then say("missing: " .. vault .. "/" .. relative) return end
+    say("── " .. relative .. " " .. string.rep("─", math.max(0, 50 - #relative)))
+    for line in file:lines() do say(line) end
+    file:close()
 end
 
 commands.sql = function(argument)
@@ -353,6 +407,7 @@ commands.reset = function()
     os.execute("mkdir -p " .. ko.DATA .. "/settings " .. ko.DATA .. "/sidecar")
     ko.reset()
     History = require("lunote_history")
+    Obsidian = require("lunote_obsidian")
     Sync = require("lunote_sync")
     state.book, state.ui, state.instance = nil, nil, nil
     say("data directory wiped")

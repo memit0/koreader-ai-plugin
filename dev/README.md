@@ -76,6 +76,9 @@ lunote> sync
   fresh selection, which is the path that appends to a note you already wrote.
 - **`sql <query>`** — raw SQL against the store. This is the debugger part; it is
   how you check what would actually be synced.
+- **`vault`** then **`obsidian`** then **`note`** — point the plugin at a vault
+  (`dev/data/vault` unless you name one), write the notes, and print the one it
+  produced. `close` writes it too, which is the path the device takes.
 - **`menu`** then **`pick <n>`** — drives the plugin's main menu the way KOReader
   would, including the file-manager case where no book is open.
 - **`mock off`** — stop faking the model and make real API calls.

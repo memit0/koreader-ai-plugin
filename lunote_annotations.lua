@@ -90,12 +90,20 @@ end
 
 --- Snapshots the open book's annotations into the local store. Called when the
 --- document closes so that syncing never has to walk sidecars or open documents.
+--- Returns the book it mirrored, which is the only moment its identity can be
+--- worked out without reopening the document.
 function Annotations.mirror(ui)
-    local ok, err = pcall(function()
-        if not (ui and ui.annotation and ui.annotation.annotations) then return end
-        History.mirrorAnnotations(Annotations.getBook(ui), ui.annotation.annotations)
+    local ok, result = pcall(function()
+        if not (ui and ui.annotation and ui.annotation.annotations) then return nil end
+        local book = Annotations.getBook(ui)
+        History.mirrorAnnotations(book, ui.annotation.annotations)
+        return book
     end)
-    if not ok then logger.warn("Lunote annotations:", tostring(err)) end
+    if not ok then
+        logger.warn("Lunote annotations:", tostring(result))
+        return nil
+    end
+    return result
 end
 
 return Annotations

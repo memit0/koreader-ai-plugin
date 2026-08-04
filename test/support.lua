@@ -169,7 +169,8 @@ function M.reset()
     M.shown, M.ticks, M.events = {}, {}, {}
     modules["lunote_config"].features = {}
     for _, name in ipairs({ "lunote_history", "lunote_sync", "lunote_annotations", "lunote_dialogs", "lunote_env",
-                            "lunote_query", "lunote_history_browser", "main", "lunote_update_checker" }) do
+                            "lunote_query", "lunote_history_browser", "lunote_obsidian", "main",
+                            "lunote_update_checker" }) do
         package.loaded[name] = nil
     end
 end

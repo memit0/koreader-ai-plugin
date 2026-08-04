@@ -193,7 +193,7 @@ local plugin = dofile(ko.PLUGIN .. "/main.lua")
 local fm_instance = plugin:new{ ui = { menu = { registerToMainMenu = function() end } } }
 fm_instance:addToMainMenu(menu_items)
 check("menu entry added", menu_items.lunote ~= nil)
-check("has browse and sync entries", #menu_items.lunote.sub_item_table == 3,
+check("has browse, sync, pair and vault entries", #menu_items.lunote.sub_item_table == 4,
     menu_items.lunote and #menu_items.lunote.sub_item_table)
 
 -- "Pair with web app" callback (not paired yet) opens the pairing dialog.

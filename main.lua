@@ -8,6 +8,7 @@ local Dialogs = require("lunote_dialogs")
 local Annotations = require("lunote_annotations")
 local History = require("lunote_history")
 local HistoryBrowser = require("lunote_history_browser")
+local Obsidian = require("lunote_obsidian")
 local Sync = require("lunote_sync")
 local UpdateChecker = require("lunote_update_checker")
 
@@ -70,9 +71,11 @@ function Lunote:init()
 end
 
 --- Snapshot this book's highlights and notes into the local store while the
---- document is still open, so syncing never has to walk sidecars.
+--- document is still open, so syncing never has to walk sidecars. The book's
+--- Obsidian note is rewritten from that snapshot, which is why closing a book is
+--- all it takes to keep a vault current.
 function Lunote:onCloseDocument()
-  Annotations.mirror(self.ui)
+  Obsidian.exportOnClose(Annotations.mirror(self.ui))
 end
 
 function Lunote:addToMainMenu(menu_items)
@@ -111,6 +114,80 @@ function Lunote:addToMainMenu(menu_items)
           if touchmenu_instance then touchmenu_instance:updateItems() end
         end,
       },
+      {
+        text = _("Obsidian vault"),
+        sub_item_table = self:obsidianMenu(),
+      },
+    },
+  }
+end
+
+-- A vault is a folder of markdown files, so this whole submenu is about one
+-- path and when to write to it.
+function Lunote:obsidianMenu()
+  local function refresh(touchmenu_instance)
+    if touchmenu_instance then touchmenu_instance:updateItems() end
+  end
+
+  return {
+    {
+      text_func = function()
+        local vault = Obsidian.getVaultPath()
+        if not vault then return _("Set vault folder…") end
+        -- The end of a long path says more than its beginning
+        if #vault > 40 then vault = "…" .. vault:sub(-39) end
+        return _("Vault: ") .. vault
+      end,
+      keep_menu_open = true,
+      callback = function(touchmenu_instance)
+        Dialogs.showObsidianVaultDialog(function() refresh(touchmenu_instance) end)
+      end,
+    },
+    {
+      text_func = function()
+        local pending = Obsidian.countPending()
+        if pending == 0 then return _("Write notes to vault") end
+        return string.format("%s (%d)", _("Write notes to vault"), pending)
+      end,
+      enabled_func = function() return Obsidian.isConfigured() end,
+      keep_menu_open = true,
+      callback = function(touchmenu_instance)
+        Obsidian.runInteractive()
+        refresh(touchmenu_instance)
+      end,
+    },
+    {
+      text = _("Write when a book is closed"),
+      checked_func = function() return Obsidian.isAutoExportEnabled() end,
+      enabled_func = function() return Obsidian.isConfigured() end,
+      keep_menu_open = true,
+      callback = function(touchmenu_instance)
+        Obsidian.setAutoExport(not Obsidian.isAutoExportEnabled())
+        refresh(touchmenu_instance)
+      end,
+    },
+    {
+      text = _("Rewrite every note"),
+      enabled_func = function() return Obsidian.isConfigured() end,
+      keep_menu_open = true,
+      separator = true,
+      callback = function(touchmenu_instance)
+        Obsidian.rewriteEverything()
+        refresh(touchmenu_instance)
+      end,
+    },
+    {
+      text = _("Forget vault folder"),
+      enabled_func = function() return Obsidian.isConfigured() end,
+      keep_menu_open = true,
+      callback = function(touchmenu_instance)
+        Obsidian.forgetVault()
+        UIManager:show(InfoMessage:new{
+          text = _("Vault folder forgotten. The notes already written stay where they are."),
+          timeout = 5,
+        })
+        refresh(touchmenu_instance)
+      end,
     },
   }
 end

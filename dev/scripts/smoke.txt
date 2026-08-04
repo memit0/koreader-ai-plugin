@@ -5,4 +5,7 @@ explain
 notes
 close
 books
+vault
+obsidian
+note 1
 status

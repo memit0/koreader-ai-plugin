@@ -115,6 +115,62 @@ Push only: the device is the source of truth and the web app displays. Nothing i
 
 The web app itself lives in [koreader-ai-plugin-webapp](https://github.com/memit0/koreader-ai-plugin-webapp) — a Next.js + Supabase project with a library view and a per-book page showing each highlight together with your note and its explanations. Its README covers setup and the device API contract.
 
+## Syncing to an Obsidian vault
+
+**Menu → Lunote → Obsidian vault** writes your reading into an [Obsidian](https://obsidian.md) vault: **one note per book**, holding every highlight from that book with the note you wrote on it and the explanations Lunote generated, in reading order.
+
+Point it at the vault once — **Set vault folder…**, then browse to it or type the path — and the notes appear under `Lunote/` inside it, one file per book. From then on each book's note is rewritten when you close the book, so a vault stays current without you doing anything. **Write when a book is closed** turns that off if you would rather write them by hand, and **Write notes to vault** shows how many books are waiting.
+
+A vault is just a folder of markdown files, so there is nothing to install on the Obsidian side and nothing to reach over wifi. What the plugin needs is a path it can write to:
+
+- **The vault on the e-reader.** A folder on the device, e.g. `/mnt/us/Obsidian/Reading` on a jailbroken Kindle. Obsidian on your phone or desktop then syncs that folder however you already sync it.
+- **A folder something else keeps in step.** Syncthing, Dropbox, or a plain copy over USB. Point the plugin at the device side of it.
+- **The vault only on your computer.** Write the notes to a folder on the device, copy that folder into the vault when you plug in. Obsidian 1.12's [CLI](https://obsidian.md/cli) is handy for the last step if the vault is open — `obsidian create vault="Reading" name="Lunote/Some Book" content="$(cat 'Some Book.md')" overwrite silent` — though a plain `cp -r` into the vault folder does the same job.
+
+A note looks like this:
+
+```markdown
+---
+title: "Critique of Pure Reason"
+author: "Immanuel Kant"
+highlights: 2
+explanations: 1
+updated: 2026-08-03 23:56
+lunote_book: "fbdc7fcc80a6da31:book:1"
+tags:
+  - lunote
+---
+
+# Critique of Pure Reason
+
+*Immanuel Kant*
+
+## Chapter 1: The Moral Law
+
+### p. 10 · 2026-07-29
+
+> Act only according to that maxim whereby you can
+> at the same time will that it should become a universal law.
+
+^lunote-20260729100001
+
+> [!note] Your note
+> the categorical imperative
+
+> [!abstract]- Explanation · google/gemini-2.5-flash-lite
+> Kant is proposing a test for whether an action is right.
+>
+> **You:** Is this the golden rule?
+>
+> Not quite — the golden rule appeals to what you would want done to you.
+```
+
+Explanations are collapsed callouts, so a book with fifty highlights still reads as a list of passages. Each highlight carries a block id (`^lunote-…`) derived from the highlight itself, so `[[Critique of Pure Reason#^lunote-20260729100001]]` from one of your own notes keeps pointing at that passage.
+
+> **Note:** a book's note is *generated*, not merged into — it is rewritten from the device whenever the book changes, so anything you type into it yourself will be lost. Write in your own notes and link to the blocks above.
+
+This is independent of the web app: exporting to a vault does not need pairing, and neither destination consumes the other's work. You can use both, either, or neither.
+
 ## Developing
 
 Testing by copying to a device is painfully slow. [`dev/`](dev/) has a KOReader

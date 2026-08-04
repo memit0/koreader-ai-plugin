@@ -17,7 +17,7 @@ local logger = require("logger")
 local History = {}
 
 local DB_PATH = DataStorage:getSettingsDir() .. "/lunote_history.sqlite3"
-local DB_SCHEMA_VERSION = 2
+local DB_SCHEMA_VERSION = 3
 
 -- Marks where the explanation begins inside an annotation's note. Mirroring
 -- strips from here on, so the web app gets the user's note and the AI text stays in
@@ -33,15 +33,18 @@ History.DB_PATH = DB_PATH
 
 local SCHEMA = [[
 CREATE TABLE IF NOT EXISTS book (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    uuid       TEXT,
-    title      TEXT,
-    authors    TEXT,
-    md5        TEXT,
-    file       TEXT,
-    cover_png  BLOB,
-    cover_sent INTEGER NOT NULL DEFAULT 0,
-    updated_at INTEGER
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    uuid                TEXT,
+    title               TEXT,
+    authors             TEXT,
+    md5                 TEXT,
+    file                TEXT,
+    cover_png           BLOB,
+    cover_sent          INTEGER NOT NULL DEFAULT 0,
+    obsidian_dirty      INTEGER NOT NULL DEFAULT 1,
+    obsidian_path       TEXT,
+    obsidian_written_at INTEGER,
+    updated_at          INTEGER
 );
 CREATE UNIQUE INDEX IF NOT EXISTS book_identity ON book(title, authors, md5);
 
@@ -148,10 +151,17 @@ local function migrate(conn)
     conn:exec(SCHEMA)
 
     -- version 0 means CREATE TABLE just ran above and already has these columns;
-    -- only a pre-existing version-1 `book` table is missing them.
+    -- only a pre-existing `book` table is missing them.
     if version == 1 then
         conn:exec("ALTER TABLE book ADD COLUMN cover_png BLOB;")
         conn:exec("ALTER TABLE book ADD COLUMN cover_sent INTEGER NOT NULL DEFAULT 0;")
+    end
+    if version >= 1 and version <= 2 then
+        -- Defaulting to 1 is what makes the first vault export pick up every
+        -- book already in the store, not just the ones touched since.
+        conn:exec("ALTER TABLE book ADD COLUMN obsidian_dirty INTEGER NOT NULL DEFAULT 1;")
+        conn:exec("ALTER TABLE book ADD COLUMN obsidian_path TEXT;")
+        conn:exec("ALTER TABLE book ADD COLUMN obsidian_written_at INTEGER;")
     end
 
     conn:exec(string.format("PRAGMA user_version=%d;", DB_SCHEMA_VERSION))
@@ -202,6 +212,15 @@ local function assignUuid(conn, tbl, id)
     local stmt = conn:prepare("UPDATE " .. tbl .. " SET uuid = ? WHERE id = ?;")
     stmt:reset():bind(uuid, id):step()
     return uuid
+end
+
+-- Flags a book as needing its Obsidian note rewritten. Deliberately a separate
+-- flag from the `dirty` columns the web-app outbox uses: the two destinations
+-- are independent, and writing a vault note must never consume what a later sync
+-- still owes the server.
+local function markBookForObsidian(conn, book_id)
+    if not book_id then return end
+    conn:prepare("UPDATE book SET obsidian_dirty = 1 WHERE id = ?;"):reset():bind(book_id):step()
 end
 
 local function upsertBook(conn, book)
@@ -284,6 +303,7 @@ function History.startConversation(info)
         for i, message in ipairs(info.messages or {}) do
             ins:reset():bind(id, i, message.role, message.content, now):step()
         end
+        markBookForObsidian(conn, book_id)
         conn:exec("COMMIT;")
         return id
     end)
@@ -306,6 +326,9 @@ function History.appendMessages(conversation_id, messages)
         end
         conn:prepare("UPDATE conversation SET dirty = 1, updated_at = ? WHERE id = ?;")
             :reset():bind(now, conversation_id):step()
+        local owner = conn:prepare("SELECT book_id FROM conversation WHERE id = ?;")
+            :reset():bind(conversation_id):step()
+        markBookForObsidian(conn, owner and tonumber(owner[1]))
         conn:exec("COMMIT;")
         return ordinal
     end)
@@ -355,6 +378,7 @@ function History.mirrorAnnotations(book, annotations)
                 end
             end
         end
+        if changed > 0 then markBookForObsidian(conn, book_id) end
         conn:exec("COMMIT;")
         return changed
     end)
@@ -413,26 +437,33 @@ function History.listConversations(book_id)
     end)
 end
 
+local function loadMessages(conn, conversation_id)
+    local stmt = conn:prepare(
+        "SELECT role, content FROM message WHERE conversation_id = ? ORDER BY ordinal;")
+    local out = {}
+    stmt:reset():bind(conversation_id)
+    local row = stmt:step()
+    while row do
+        out[#out + 1] = { role = row[1], content = row[2] }
+        row = stmt:step()
+    end
+    return out
+end
+
 function History.getMessages(conversation_id)
-    return withConn(function(conn)
-        local stmt = conn:prepare(
-            "SELECT role, content FROM message WHERE conversation_id = ? ORDER BY ordinal;")
-        local out = {}
-        stmt:reset():bind(conversation_id)
-        local row = stmt:step()
-        while row do
-            out[#out + 1] = { role = row[1], content = row[2] }
-            row = stmt:step()
-        end
-        return out
-    end)
+    return withConn(function(conn) return loadMessages(conn, conversation_id) end)
 end
 
 function History.deleteConversation(id)
     return withConn(function(conn)
         conn:exec("BEGIN;")
+        -- Read the owner before the row goes: its vault note has to be rewritten
+        -- without this explanation in it.
+        local owner = conn:prepare("SELECT book_id FROM conversation WHERE id = ?;")
+            :reset():bind(id):step()
         conn:prepare("DELETE FROM message WHERE conversation_id = ?;"):reset():bind(id):step()
         conn:prepare("DELETE FROM conversation WHERE id = ?;"):reset():bind(id):step()
+        markBookForObsidian(conn, owner and tonumber(owner[1]))
         conn:exec("COMMIT;")
         return true
     end)
@@ -605,6 +636,203 @@ function History.getDirtyConversations(after_id, limit)
 
         local books, cover_ids = bookRefs(conn, book_ids)
         return { records = conversations, ids = ids, books = books, cover_ids = cover_ids, cursor = cursor }
+    end)
+end
+
+-- Obsidian export ---------------------------------------------------------
+-- Reads for the vault writer. A book's note is regenerated whole, so these
+-- queries are paginated the same way the outbox is: the note for a book with a
+-- thousand highlights costs the same memory as the note for one with ten.
+
+-- A book only earns a note once it holds something worth writing. Every book you
+-- open gets a row here — mirroring runs on close whether or not you highlighted
+-- anything — and an empty note per book you have merely opened would be noise in
+-- someone's vault.
+local HAS_CONTENT = [[
+    (EXISTS (SELECT 1 FROM item i WHERE i.book_id = b.id)
+     OR EXISTS (SELECT 1 FROM conversation c WHERE c.book_id = b.id))
+]]
+
+function History.countObsidianPending()
+    return withConn(function(conn)
+        return tonumber(conn:rowexec(
+            "SELECT COUNT(*) FROM book b WHERE b.obsidian_dirty = 1 AND " .. HAS_CONTENT .. ";")) or 0
+    end)
+end
+
+--- One page of books whose vault note is out of date.
+function History.getObsidianPendingBooks(after_id, limit)
+    return withConn(function(conn)
+        local stmt = conn:prepare([[
+            SELECT b.id FROM book b
+            WHERE b.obsidian_dirty = 1 AND b.id > ? AND ]] .. HAS_CONTENT .. [[
+            ORDER BY b.id LIMIT ?;
+        ]])
+        local ids, cursor = {}, after_id or 0
+        stmt:reset():bind(after_id or 0, limit or 25)
+        local row = stmt:step()
+        while row do
+            cursor = tonumber(row[1])
+            ids[#ids + 1] = cursor
+            row = stmt:step()
+        end
+        return { ids = ids, cursor = cursor }
+    end)
+end
+
+--- Everything the vault writer needs about a book except its highlights.
+function History.getObsidianBook(book_id)
+    return withConn(function(conn)
+        local row = conn:prepare([[
+            SELECT b.uuid, b.title, b.authors, b.md5, b.file, b.obsidian_path, b.obsidian_dirty,
+                   (SELECT COUNT(*) FROM item i WHERE i.book_id = b.id),
+                   (SELECT COUNT(*) FROM conversation c WHERE c.book_id = b.id)
+            FROM book b WHERE b.id = ?;
+        ]]):reset():bind(book_id):step()
+        if not row then return nil end
+        return {
+            id = book_id, uuid = row[1], title = row[2], authors = row[3], md5 = row[4],
+            file = row[5], obsidian_path = row[6], obsidian_dirty = tonumber(row[7]) == 1,
+            n_items = tonumber(row[8]) or 0, n_conversations = tonumber(row[9]) or 0,
+        }
+    end)
+end
+
+--- The local id for a book identified the way upsertBook matches it, or nil.
+function History.findBookId(book)
+    return withConn(function(conn)
+        local row = conn:prepare("SELECT id FROM book WHERE title = ? AND authors = ? AND md5 = ?;")
+            :reset():bind(book.title or "", book.authors or "", book.md5 or ""):step()
+        return row and tonumber(row[1]) or nil
+    end)
+end
+
+--- One page of a book's highlights in reading order. `cursor` is the last record
+--- of the previous page (nil to start). Ordering by page rather than by rowid is
+--- what keeps a highlight added on a re-read from landing at the end of the note,
+--- so the keyset is the whole sort key rather than just the id.
+function History.getObsidianItems(book_id, cursor, limit)
+    return withConn(function(conn)
+        local stmt = conn:prepare([[
+            SELECT id, uuid, datetime, text, note, chapter, pageno
+            FROM item
+            WHERE book_id = ?
+              AND (COALESCE(pageno, 0) > ?
+                OR (COALESCE(pageno, 0) = ? AND (COALESCE(datetime, '') > ?
+                OR (COALESCE(datetime, '') = ? AND id > ?))))
+            ORDER BY COALESCE(pageno, 0), COALESCE(datetime, ''), id
+            LIMIT ?;
+        ]])
+        local pageno = cursor and cursor.pageno or 0
+        local datetime = cursor and cursor.datetime or ""
+        local id = cursor and cursor.id or 0
+        stmt:reset():bind(book_id, pageno, pageno, datetime, datetime, id, limit or 25)
+
+        local records, last = {}, nil
+        local row = stmt:step()
+        while row do
+            last = {
+                id = tonumber(row[1]), pageno = tonumber(row[7]) or 0, datetime = row[3] or "",
+            }
+            records[#records + 1] = {
+                id = last.id, uuid = row[2], datetime = row[3], text = row[4], note = row[5],
+                chapter = row[6], pageno = tonumber(row[7]),
+            }
+            row = stmt:step()
+        end
+        return { records = records, cursor = last or cursor }
+    end)
+end
+
+--- The explanations attached to one highlight, oldest first, with their messages.
+function History.getConversationsForAnnotation(book_id, datetime)
+    return withConn(function(conn)
+        local stmt = conn:prepare([[
+            SELECT id, kind, model, created_at FROM conversation
+            WHERE book_id = ? AND annotation_datetime = ? ORDER BY created_at, id;
+        ]])
+        local out = {}
+        stmt:reset():bind(book_id, datetime)
+        local row = stmt:step()
+        while row do
+            out[#out + 1] = { id = tonumber(row[1]), kind = row[2], model = row[3],
+                created_at = tonumber(row[4]) }
+            row = stmt:step()
+        end
+        for _, conversation in ipairs(out) do
+            conversation.messages = loadMessages(conn, conversation.id)
+        end
+        return out
+    end)
+end
+
+--- One page of explanations that have no highlight to sit under: the annotation
+--- write failed (a scanned PDF can hand back a selection with no positions), or
+--- the highlight has since been deleted. They would otherwise vanish from the
+--- vault entirely.
+function History.getUnanchoredConversations(book_id, after_id, limit)
+    return withConn(function(conn)
+        local stmt = conn:prepare([[
+            SELECT c.id, c.kind, c.highlight, c.chapter, c.pageno, c.model, c.created_at
+            FROM conversation c
+            WHERE c.book_id = ? AND c.id > ?
+              AND (c.annotation_datetime IS NULL OR c.annotation_datetime = ''
+                   OR NOT EXISTS (SELECT 1 FROM item i
+                                  WHERE i.book_id = c.book_id AND i.datetime = c.annotation_datetime))
+            ORDER BY c.id LIMIT ?;
+        ]])
+        local records, cursor = {}, after_id or 0
+        stmt:reset():bind(book_id, after_id or 0, limit or 25)
+        local row = stmt:step()
+        while row do
+            cursor = tonumber(row[1])
+            records[#records + 1] = {
+                id = cursor, kind = row[2], highlight = row[3], chapter = row[4],
+                pageno = tonumber(row[5]), model = row[6], created_at = tonumber(row[7]),
+            }
+            row = stmt:step()
+        end
+        for _, conversation in ipairs(records) do
+            conversation.messages = loadMessages(conn, conversation.id)
+        end
+        return { records = records, cursor = cursor }
+    end)
+end
+
+--- Whether another book has already claimed this path inside the vault.
+function History.isObsidianPathTaken(path, book_id)
+    return withConn(function(conn)
+        local row = conn:prepare("SELECT COUNT(*) FROM book WHERE obsidian_path = ? AND id <> ?;")
+            :reset():bind(path, book_id or 0):step()
+        return (tonumber(row and row[1]) or 0) > 0
+    end)
+end
+
+--- Remembers where a book's note lives, so later exports overwrite that same
+--- file rather than leaving a second copy behind under a new name.
+function History.setObsidianPath(book_id, path)
+    return withConn(function(conn)
+        conn:prepare("UPDATE book SET obsidian_path = ? WHERE id = ?;")
+            :reset():bind(path, book_id):step()
+        return true
+    end)
+end
+
+--- Called only once the note is on disk, so a failed write is simply retried.
+function History.markObsidianWritten(book_id)
+    return withConn(function(conn)
+        conn:prepare("UPDATE book SET obsidian_dirty = 0, obsidian_written_at = ? WHERE id = ?;")
+            :reset():bind(os.time(), book_id):step()
+        return true
+    end)
+end
+
+--- Flags every book for rewriting: what "Rewrite every note" is, and what makes
+--- pointing the plugin at a new vault populate it in full.
+function History.markAllForObsidian()
+    return withConn(function(conn)
+        conn:exec("UPDATE book SET obsidian_dirty = 1;")
+        return true
     end)
 end
 

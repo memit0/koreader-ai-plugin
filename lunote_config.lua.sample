@@ -29,6 +29,18 @@ local CONFIGURATION = {
 
         -- Translations stay out of the history unless you ask for them.
         -- log_translations = true,
+
+        -- An Obsidian vault to write one note per book into: every highlight
+        -- from that book with your note on it and its explanations. Normally set
+        -- from Menu -> Lunote -> Obsidian vault; a path set there wins over this.
+        -- obsidian_vault = "/mnt/us/Obsidian/Reading",
+
+        -- The folder inside the vault the notes go in. Defaults to Lunote.
+        -- obsidian_folder = "Lunote",
+
+        -- A book's note is rewritten when you close the book. Set to false to
+        -- only write notes when you pick "Write notes to vault" yourself.
+        -- obsidian_auto_export = false,
     },
 }
 

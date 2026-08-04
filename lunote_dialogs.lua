@@ -8,6 +8,7 @@ local _ = require("gettext")
 local queryModel = require("lunote_query")
 local Annotations = require("lunote_annotations")
 local History = require("lunote_history")
+local Obsidian = require("lunote_obsidian")
 local Sync = require("lunote_sync")
 local Env = require("lunote_env")
 
@@ -239,9 +240,99 @@ local function showPairingDialog()
   dialog:onShowKeyboard()
 end
 
+-- Obsidian --------------------------------------------------------------------
+
+local function reportVaultSet(vault, err, on_change)
+  if not vault then
+    showError(_("Could not use that folder:") .. "\n\n" .. tostring(err))
+    return
+  end
+  if on_change then on_change() end
+  local text = _("Vault folder set:") .. "\n\n" .. vault
+  if not Obsidian.looksLikeVault(vault) then
+    -- Not an error: an empty folder becomes a vault the moment Obsidian opens
+    -- it. Worth saying, because a mistyped path looks exactly like this too.
+    text = text .. "\n\n" .. _("No .obsidian folder found there yet.")
+  end
+  UIManager:show(InfoMessage:new{ text = text, timeout = 5 })
+end
+
+-- KOReader's folder picker is much kinder than typing a path on e-ink, but the
+-- dialog has to work without it too: the widget has moved between releases, and
+-- a missing picker must not cost the user the ability to set a vault at all.
+local function pathChooser()
+  local ok, PathChooser = pcall(require, "ui/widget/pathchooser")
+  if ok and PathChooser then return PathChooser end
+  return nil
+end
+
+local function chooseVaultFolder(on_change)
+  local PathChooser = pathChooser()
+  if not PathChooser then return false end
+  return (pcall(function()
+    UIManager:show(PathChooser:new{
+      title = _("Choose your Obsidian vault"),
+      select_directory = true,
+      select_file = false,
+      path = Obsidian.getVaultPath() or require("datastorage"):getDataDir(),
+      onConfirm = function(path)
+        local vault, err = Obsidian.setVaultPath(path)
+        reportVaultSet(vault, err, on_change)
+      end,
+    })
+  end))
+end
+
+--- Where the vault is. Typing always works; a folder picker is offered on top
+--- when this KOReader has one.
+local function showObsidianVaultDialog(on_change)
+  local dialog
+  local row = {
+    {
+      text = _("Cancel"),
+      callback = function() UIManager:close(dialog) end,
+    },
+    {
+      text = _("Save"),
+      is_enter_default = true,
+      callback = function()
+        local path = dialog:getInputText()
+        UIManager:close(dialog)
+        if not path or path == "" then return end
+        local vault, err = Obsidian.setVaultPath(path)
+        reportVaultSet(vault, err, on_change)
+      end,
+    },
+  }
+
+  if pathChooser() then
+    table.insert(row, 2, {
+      text = _("Browse…"),
+      callback = function()
+        UIManager:close(dialog)
+        if not chooseVaultFolder(on_change) then
+          showError(_("This KOReader has no folder picker; type the path instead."))
+        end
+      end,
+    })
+  end
+
+  dialog = InputDialog:new{
+    title = _("Obsidian vault folder"),
+    description = _("The folder your vault lives in. Notes are written to a folder inside it, one per book."),
+    input = Obsidian.getVaultPath() or "",
+    input_type = "text",
+    buttons = { row },
+  }
+
+  UIManager:show(dialog)
+  dialog:onShowKeyboard()
+end
+
 return {
   explain = explainHighlight,
   translate = translateHighlight,
   isTranslationEnabled = isTranslationEnabled,
   showPairingDialog = showPairingDialog,
+  showObsidianVaultDialog = showObsidianVaultDialog,
 }
