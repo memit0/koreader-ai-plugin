@@ -88,12 +88,14 @@ function Lunote:addToMainMenu(menu_items)
         callback = function() HistoryBrowser.show() end,
       },
       {
+        -- One Sync, to wherever this device is set up to send: the web app, the
+        -- Obsidian vault, or both.
         text_func = function()
-          local outstanding = History.countDirty() or 0
-          if outstanding == 0 then return _("Sync to web app") end
-          return string.format("%s (%d)", _("Sync to web app"), outstanding)
+          local outstanding = Sync.countOutstanding()
+          if outstanding == 0 then return _("Sync now") end
+          return string.format("%s (%d)", _("Sync now"), outstanding)
         end,
-        enabled_func = function() return Sync.isConfigured() end,
+        enabled_func = function() return Sync.hasDestination() end,
         keep_menu_open = true,
         callback = function()
           NetworkMgr:runWhenOnline(function() Sync.runInteractive() end)
@@ -131,14 +133,45 @@ function Lunote:obsidianMenu()
 
   return {
     {
+      -- The usual case: Obsidian is running on a computer or phone on the same
+      -- network, with the Local REST API plugin listening.
       text_func = function()
-        local vault = Obsidian.getVaultPath()
-        if not vault then return _("Set vault folder…") end
-        -- The end of a long path says more than its beginning
-        if #vault > 40 then vault = "…" .. vault:sub(-39) end
-        return _("Vault: ") .. vault
+        local server = Obsidian.getServerUrl()
+        if not server then return _("Connect to Obsidian…") end
+        return _("Obsidian: ") .. server:gsub("^https?://", "")
       end,
       keep_menu_open = true,
+      callback = function(touchmenu_instance)
+        Dialogs.showObsidianServerDialog(function() refresh(touchmenu_instance) end)
+      end,
+    },
+    {
+      text = _("Test the connection"),
+      enabled_func = function() return Obsidian.isServerConfigured() end,
+      keep_menu_open = true,
+      callback = function()
+        NetworkMgr:runWhenOnline(function()
+          local ok, detail = Obsidian.testConnection()
+          UIManager:show(InfoMessage:new{
+            text = ok and (_("Connected to ") .. tostring(detail))
+              or (_("Could not connect:") .. "\n\n" .. tostring(detail)),
+            timeout = ok and 5 or 10,
+          })
+        end)
+      end,
+    },
+    {
+      -- For a vault that lives on the device itself, or a folder something else
+      -- syncs. Works with no network at all.
+      text_func = function()
+        local vault = Obsidian.getVaultPath()
+        if not vault then return _("Write to a folder instead…") end
+        -- The end of a long path says more than its beginning
+        if #vault > 34 then vault = "…" .. vault:sub(-33) end
+        return _("Folder: ") .. vault
+      end,
+      keep_menu_open = true,
+      separator = true,
       callback = function(touchmenu_instance)
         Dialogs.showObsidianVaultDialog(function() refresh(touchmenu_instance) end)
       end,
@@ -146,20 +179,22 @@ function Lunote:obsidianMenu()
     {
       text_func = function()
         local pending = Obsidian.countPending()
-        if pending == 0 then return _("Write notes to vault") end
-        return string.format("%s (%d)", _("Write notes to vault"), pending)
+        if pending == 0 then return _("Write notes now") end
+        return string.format("%s (%d)", _("Write notes now"), pending)
       end,
       enabled_func = function() return Obsidian.isConfigured() end,
       keep_menu_open = true,
       callback = function(touchmenu_instance)
-        Obsidian.runInteractive()
+        NetworkMgr:runWhenOnline(function() Obsidian.runInteractive() end)
         refresh(touchmenu_instance)
       end,
     },
     {
-      text = _("Write when a book is closed"),
+      -- Only the folder destination writes on close; sending over the network is
+      -- left to Sync, because closing a book is no moment to wait on wifi.
+      text = _("Write to the folder when a book is closed"),
       checked_func = function() return Obsidian.isAutoExportEnabled() end,
-      enabled_func = function() return Obsidian.isConfigured() end,
+      enabled_func = function() return Obsidian.getVaultPath() ~= nil end,
       keep_menu_open = true,
       callback = function(touchmenu_instance)
         Obsidian.setAutoExport(not Obsidian.isAutoExportEnabled())
@@ -172,18 +207,19 @@ function Lunote:obsidianMenu()
       keep_menu_open = true,
       separator = true,
       callback = function(touchmenu_instance)
-        Obsidian.rewriteEverything()
+        NetworkMgr:runWhenOnline(function() Obsidian.rewriteEverything() end)
         refresh(touchmenu_instance)
       end,
     },
     {
-      text = _("Forget vault folder"),
+      text = _("Disconnect from Obsidian"),
       enabled_func = function() return Obsidian.isConfigured() end,
       keep_menu_open = true,
       callback = function(touchmenu_instance)
+        Obsidian.forgetServer()
         Obsidian.forgetVault()
         UIManager:show(InfoMessage:new{
-          text = _("Vault folder forgotten. The notes already written stay where they are."),
+          text = _("Disconnected. The notes already in your vault stay where they are."),
           timeout = 5,
         })
         refresh(touchmenu_instance)

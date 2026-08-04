@@ -17,7 +17,7 @@ local logger = require("logger")
 local History = {}
 
 local DB_PATH = DataStorage:getSettingsDir() .. "/lunote_history.sqlite3"
-local DB_SCHEMA_VERSION = 3
+local DB_SCHEMA_VERSION = 4
 
 -- Marks where the explanation begins inside an annotation's note. Mirroring
 -- strips from here on, so the web app gets the user's note and the AI text stays in
@@ -41,10 +41,12 @@ CREATE TABLE IF NOT EXISTS book (
     file                TEXT,
     cover_png           BLOB,
     cover_sent          INTEGER NOT NULL DEFAULT 0,
-    obsidian_dirty      INTEGER NOT NULL DEFAULT 1,
-    obsidian_path       TEXT,
-    obsidian_written_at INTEGER,
-    updated_at          INTEGER
+    obsidian_dirty        INTEGER NOT NULL DEFAULT 1,
+    obsidian_remote_dirty INTEGER NOT NULL DEFAULT 1,
+    obsidian_path         TEXT,
+    obsidian_written_at   INTEGER,
+    obsidian_remote_at    INTEGER,
+    updated_at            INTEGER
 );
 CREATE UNIQUE INDEX IF NOT EXISTS book_identity ON book(title, authors, md5);
 
@@ -163,6 +165,12 @@ local function migrate(conn)
         conn:exec("ALTER TABLE book ADD COLUMN obsidian_path TEXT;")
         conn:exec("ALTER TABLE book ADD COLUMN obsidian_written_at INTEGER;")
     end
+    if version >= 1 and version <= 3 then
+        -- A note written to a folder on the device says nothing about whether
+        -- Obsidian itself has it, so the two destinations count separately.
+        conn:exec("ALTER TABLE book ADD COLUMN obsidian_remote_dirty INTEGER NOT NULL DEFAULT 1;")
+        conn:exec("ALTER TABLE book ADD COLUMN obsidian_remote_at INTEGER;")
+    end
 
     conn:exec(string.format("PRAGMA user_version=%d;", DB_SCHEMA_VERSION))
 end
@@ -214,13 +222,27 @@ local function assignUuid(conn, tbl, id)
     return uuid
 end
 
--- Flags a book as needing its Obsidian note rewritten. Deliberately a separate
--- flag from the `dirty` columns the web-app outbox uses: the two destinations
--- are independent, and writing a vault note must never consume what a later sync
--- still owes the server.
+-- Where a book's note can go. Each destination keeps its own outbox flag: a note
+-- written to a folder on the device says nothing about whether Obsidian itself
+-- has it, and neither may consume what the other still owes. The web app's own
+-- `dirty` columns are a third, equally independent, outbox.
+--
+-- Column names are only ever looked up in this table, never built from a caller's
+-- string.
+local OBSIDIAN_DESTINATIONS = {
+    file   = { dirty = "obsidian_dirty",        at = "obsidian_written_at" },
+    remote = { dirty = "obsidian_remote_dirty", at = "obsidian_remote_at" },
+}
+
+local function destinationColumns(destination)
+    return OBSIDIAN_DESTINATIONS[destination] or OBSIDIAN_DESTINATIONS.file
+end
+
+--- Flags a book as needing its note rewritten, everywhere it is sent.
 local function markBookForObsidian(conn, book_id)
     if not book_id then return end
-    conn:prepare("UPDATE book SET obsidian_dirty = 1 WHERE id = ?;"):reset():bind(book_id):step()
+    conn:prepare("UPDATE book SET obsidian_dirty = 1, obsidian_remote_dirty = 1 WHERE id = ?;")
+        :reset():bind(book_id):step()
 end
 
 local function upsertBook(conn, book)
@@ -653,19 +675,29 @@ local HAS_CONTENT = [[
      OR EXISTS (SELECT 1 FROM conversation c WHERE c.book_id = b.id))
 ]]
 
-function History.countObsidianPending()
+--- How many books are out of date at `destination`, or at either of them when
+--- that is "any" — which is what the menu counts when a vault folder and an
+--- Obsidian address are both configured.
+function History.countObsidianPending(destination)
+    local condition
+    if destination == "any" then
+        condition = "(b.obsidian_dirty = 1 OR b.obsidian_remote_dirty = 1)"
+    else
+        condition = "b." .. destinationColumns(destination).dirty .. " = 1"
+    end
     return withConn(function(conn)
-        return tonumber(conn:rowexec(
-            "SELECT COUNT(*) FROM book b WHERE b.obsidian_dirty = 1 AND " .. HAS_CONTENT .. ";")) or 0
+        return tonumber(conn:rowexec("SELECT COUNT(*) FROM book b WHERE " .. condition
+            .. " AND " .. HAS_CONTENT .. ";")) or 0
     end)
 end
 
---- One page of books whose vault note is out of date.
-function History.getObsidianPendingBooks(after_id, limit)
+--- One page of books whose note is out of date at `destination`.
+function History.getObsidianPendingBooks(destination, after_id, limit)
+    local columns = destinationColumns(destination)
     return withConn(function(conn)
         local stmt = conn:prepare([[
             SELECT b.id FROM book b
-            WHERE b.obsidian_dirty = 1 AND b.id > ? AND ]] .. HAS_CONTENT .. [[
+            WHERE b.]] .. columns.dirty .. [[ = 1 AND b.id > ? AND ]] .. HAS_CONTENT .. [[
             ORDER BY b.id LIMIT ?;
         ]])
         local ids, cursor = {}, after_id or 0
@@ -686,14 +718,16 @@ function History.getObsidianBook(book_id)
         local row = conn:prepare([[
             SELECT b.uuid, b.title, b.authors, b.md5, b.file, b.obsidian_path, b.obsidian_dirty,
                    (SELECT COUNT(*) FROM item i WHERE i.book_id = b.id),
-                   (SELECT COUNT(*) FROM conversation c WHERE c.book_id = b.id)
+                   (SELECT COUNT(*) FROM conversation c WHERE c.book_id = b.id),
+                   b.obsidian_remote_dirty
             FROM book b WHERE b.id = ?;
         ]]):reset():bind(book_id):step()
         if not row then return nil end
         return {
             id = book_id, uuid = row[1], title = row[2], authors = row[3], md5 = row[4],
-            file = row[5], obsidian_path = row[6], obsidian_dirty = tonumber(row[7]) == 1,
+            file = row[5], obsidian_path = row[6],
             n_items = tonumber(row[8]) or 0, n_conversations = tonumber(row[9]) or 0,
+            pending = { file = tonumber(row[7]) == 1, remote = tonumber(row[10]) == 1 },
         }
     end)
 end
@@ -818,20 +852,22 @@ function History.setObsidianPath(book_id, path)
     end)
 end
 
---- Called only once the note is on disk, so a failed write is simply retried.
-function History.markObsidianWritten(book_id)
+--- Called only once the note has landed at `destination`, so a failed write or a
+--- dropped connection is simply retried.
+function History.markObsidianWritten(book_id, destination)
+    local columns = destinationColumns(destination)
     return withConn(function(conn)
-        conn:prepare("UPDATE book SET obsidian_dirty = 0, obsidian_written_at = ? WHERE id = ?;")
-            :reset():bind(os.time(), book_id):step()
+        conn:prepare("UPDATE book SET " .. columns.dirty .. " = 0, " .. columns.at
+            .. " = ? WHERE id = ?;"):reset():bind(os.time(), book_id):step()
         return true
     end)
 end
 
---- Flags every book for rewriting: what "Rewrite every note" is, and what makes
---- pointing the plugin at a new vault populate it in full.
+--- Flags every book at every destination: what "Rewrite every note" is, and what
+--- makes pointing the plugin at a new vault populate it in full.
 function History.markAllForObsidian()
     return withConn(function(conn)
-        conn:exec("UPDATE book SET obsidian_dirty = 1;")
+        conn:exec("UPDATE book SET obsidian_dirty = 1, obsidian_remote_dirty = 1;")
         return true
     end)
 end

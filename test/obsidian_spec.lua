@@ -308,15 +308,216 @@ for _index, entry in ipairs(items.lunote.sub_item_table) do
 end
 check("the vault has its own submenu", submenu ~= nil)
 submenu = submenu or {}
-check("the vault path is shown", submenu[1] and submenu[1].text_func():find(VAULT, 1, true) ~= nil,
+check("the Obsidian address is offered first",
+    submenu[1] and submenu[1].text_func() == "Connect to Obsidian…",
     submenu[1] and submenu[1].text_func())
-check("the pending count is shown", submenu[2] and submenu[2].text_func():find("(1)", 1, true) ~= nil,
-    submenu[2] and submenu[2].text_func())
-check("the auto-export toggle reflects the setting",
-    submenu[3] and submenu[3].checked_func() == false)
-check("export is disabled without a vault", (function()
+check("the folder is shown once set", submenu[3] and submenu[3].text_func():find(VAULT, 1, true) ~= nil,
+    submenu[3] and submenu[3].text_func())
+check("the pending count is shown", submenu[4] and submenu[4].text_func():find("(1)", 1, true) ~= nil,
+    submenu[4] and submenu[4].text_func())
+check("the write-on-close toggle reflects the setting",
+    submenu[5] and submenu[5].checked_func() == false)
+check("writing is disabled with nowhere to write to", (function()
     Obsidian.forgetVault()
-    return submenu[2].enabled_func() == false
+    return submenu[4].enabled_func() == false
 end)())
+
+-- Pushing to Obsidian over the network ---------------------------------------
+
+print("\nthe Obsidian address")
+ko.reset()
+History, Obsidian = loadModules()
+
+check("a bare address gets HTTPS and the default port",
+    Obsidian.normaliseServer("192.168.1.20") == "https://192.168.1.20:27124",
+    Obsidian.normaliseServer("192.168.1.20"))
+check("a port that was given is kept",
+    Obsidian.normaliseServer("192.168.1.20:27123") == "https://192.168.1.20:27123")
+check("plain HTTP is left alone, for the insecure port",
+    Obsidian.normaliseServer("http://192.168.1.20:27123") == "http://192.168.1.20:27123")
+check("a trailing slash is trimmed",
+    Obsidian.normaliseServer("https://vault.example.com/") == "https://vault.example.com")
+
+check("an address on its own is not enough", (function()
+    History.setState("obsidian_url", "https://192.168.1.20:27124")
+    return Obsidian.isServerConfigured() == false
+end)())
+check("an address and a key are", (function()
+    Obsidian.setServer("192.168.1.20", "0123456789abcdef")
+    return Obsidian.isServerConfigured() == true
+end)())
+check("the key is not treated as a vault folder", Obsidian.getVaultPath() == nil)
+check("a missing key is refused", (function()
+    local ok, err = Obsidian.setServer("192.168.1.20", "  ")
+    return ok == nil and err ~= nil
+end)())
+
+print("\npushing a note to Obsidian")
+ko.reset()
+freshVault()
+History, Obsidian = loadModules()
+Obsidian.setServer("192.168.1.20", "secret-key")
+History.mirrorAnnotations(BOOK, { annotation(1) })
+History.startConversation{
+    book = BOOK, kind = "explain", highlight = "passage 1",
+    annotation_datetime = "2026-07-29 10:00:01", model = "test-model",
+    messages = {
+        { role = "user", content = "passage 1" },
+        { role = "assistant", content = "Because Kant says so." },
+    },
+}
+
+written, export_err = Obsidian.exportPending()
+check("the note is pushed", written == 1 and export_err == nil, tostring(export_err))
+local put = ko.http.requests[1]
+check("one request was made", #ko.http.requests == 1, #ko.http.requests)
+check("it is a PUT", put and put.method == "PUT", put and put.method)
+check("to the vault path, percent-encoded",
+    put and put.url == "https://192.168.1.20:27124/vault/Lunote/Critique%20of%20Pure%20Reason.md",
+    put and put.url)
+check("with the API key", put and put.headers["Authorization"] == "Bearer secret-key",
+    put and put.headers["Authorization"])
+check("as markdown", put and put.headers["Content-Type"] == "text/markdown")
+check("with a length", put and put.headers["Content-Length"] == tostring(#put.body),
+    put and put.headers["Content-Length"])
+check("the body is the note", put and put.body:find("# Critique of Pure Reason", 1, true) ~= nil)
+check("with the explanation in it", put and put.body:find("> Because Kant says so.", 1, true) ~= nil)
+check("nothing is left pending", Obsidian.countPending() == 0, Obsidian.countPending())
+
+local before_calls = #ko.http.requests
+Obsidian.exportPending()
+check("a second push sends nothing", #ko.http.requests == before_calls)
+
+print("\nwhen Obsidian says no")
+ko.reset()
+History, Obsidian = loadModules()
+Obsidian.setServer("192.168.1.20", "wrong-key")
+History.mirrorAnnotations(BOOK, { annotation(1) })
+
+ko.http.status = 401
+written, export_err = Obsidian.exportPending()
+check("a rejected key is explained, not raised", written == 0
+    and export_err ~= nil and export_err:find("API key", 1, true) ~= nil, export_err)
+check("the book stays pending", Obsidian.countPending() == 1)
+
+ko.http.status = 200
+ko.http.fail_after = 0 -- as if the laptop were asleep
+written, export_err = Obsidian.exportPending()
+check("an unreachable Obsidian is reported", written == 0 and export_err ~= nil, export_err)
+check("and the book is still pending", Obsidian.countPending() == 1)
+
+ko.http.fail_after = nil
+written, export_err = Obsidian.exportPending()
+check("it goes out once Obsidian is back", written == 1 and export_err == nil, export_err)
+
+print("\ntesting the connection")
+ko.reset()
+History, Obsidian = loadModules()
+Obsidian.setServer("192.168.1.20", "secret-key")
+ko.http.response = { service = "Obsidian Local REST API", authenticated = true,
+    versions = { obsidian = "1.12.4" } }
+local connected, detail = Obsidian.testConnection()
+check("a good connection reports the service", connected == true
+    and detail:find("Obsidian Local REST API", 1, true) ~= nil, detail)
+check("the test is a plain GET", ko.http.requests[1].method == "GET"
+    and ko.http.requests[1].url == "https://192.168.1.20:27124/")
+
+ko.http.response = { authenticated = false }
+connected, detail = Obsidian.testConnection()
+check("a rejected key is caught by the test", connected == nil and detail ~= nil, detail)
+
+print("\nboth destinations at once")
+ko.reset()
+freshVault()
+History, Obsidian = loadModules()
+History.setState("obsidian_vault", VAULT)
+Obsidian.setServer("192.168.1.20", "secret-key")
+History.mirrorAnnotations(BOOK, { annotation(1) })
+check("both destinations are configured", #Obsidian.destinations() == 2)
+check("the book counts once, not twice", Obsidian.countPending() == 1, Obsidian.countPending())
+
+written, export_err = Obsidian.exportPending()
+check("one book, one note in the summary", written == 1 and export_err == nil, export_err)
+check("the file was written", fileExists(VAULT .. "/Lunote/Critique of Pure Reason.md"))
+check("and Obsidian was sent the same path",
+    ko.http.requests[1].url:find("/vault/Lunote/Critique%20of%20Pure%20Reason.md", 1, true) ~= nil,
+    ko.http.requests[1].url)
+check("nothing left pending anywhere", Obsidian.countPending() == 0)
+
+print("\none destination failing does not undo the other")
+freshVault()
+History.mirrorAnnotations(BOOK, { annotation(1), annotation(2) })
+ko.http.fail_after = 0
+written, export_err = Obsidian.exportPending()
+check("the failure is reported", export_err ~= nil, export_err)
+check("the file destination still got its note",
+    fileExists(VAULT .. "/Lunote/Critique of Pure Reason.md"))
+check("the book is still pending, for Obsidian", Obsidian.countPending() == 1)
+
+ko.http.fail_after = nil
+local requests_before = #ko.http.requests
+written, export_err = Obsidian.exportPending()
+check("retrying sends only what is owed", #ko.http.requests - requests_before == 1,
+    #ko.http.requests - requests_before)
+check("and now everything is delivered", Obsidian.countPending() == 0)
+
+print("\nclosing a book does not wait on wifi")
+ko.reset()
+freshVault()
+History, Obsidian = loadModules()
+History.setState("obsidian_vault", VAULT)
+Obsidian.setServer("192.168.1.20", "secret-key")
+
+local closing_ui = {
+    annotation = { annotations = { annotation(1) } },
+    document = {
+        file = "/books/kant.epub",
+        getProps = function() return { title = BOOK.title, authors = BOOK.authors } end,
+    },
+    menu = { registerToMainMenu = function() end },
+    handleEvent = function() end,
+    highlight = { addToHighlightDialog = function() end, onClose = function() end },
+}
+local closing_plugin = dofile(ko.PLUGIN .. "/main.lua")
+closing_plugin:new{ ui = closing_ui, view = {}, document = closing_ui.document }
+    :onCloseDocument()
+
+check("the note is on disk", fileExists(VAULT .. "/Lunote/Critique of Pure Reason.md"))
+check("but nothing was sent over the network", #ko.http.requests == 0, #ko.http.requests)
+check("Obsidian is still owed the note", Obsidian.countPending() == 1)
+
+print("\none sync, both destinations")
+ko.reset()
+freshVault()
+History, Obsidian = loadModules()
+local Sync = require("lunote_sync")
+History.setState("obsidian_vault", VAULT)
+Obsidian.setServer("192.168.1.20", "secret-key")
+History.setState("token", "web-app-token")
+History.mirrorAnnotations(BOOK, { annotation(1) })
+
+check("the count covers both", Sync.countOutstanding() == 2, Sync.countOutstanding())
+ko.http.response = { accepted = 1 }
+local summary, sync_err
+Sync.runEverything{ done = function(s, e) summary, sync_err = s, e end }
+check("no error", sync_err == nil, sync_err)
+check("both destinations are reported", #summary == 2, summary and #summary)
+check("the web app got its records", summary[1]:find("record", 1, true) ~= nil, summary[1])
+check("the vault got its note", summary[2]:find("note", 1, true) ~= nil, summary[2])
+check("the note is in the folder", fileExists(VAULT .. "/Lunote/Critique of Pure Reason.md"))
+check("nothing is outstanding afterwards", Sync.countOutstanding() == 0, Sync.countOutstanding())
+
+print("\nsyncing with only one destination set up")
+ko.reset()
+freshVault()
+History, Obsidian = loadModules()
+Sync = require("lunote_sync")
+History.mirrorAnnotations(BOOK, { annotation(1) })
+check("nowhere to sync to yet", Sync.hasDestination() == false)
+Obsidian.setServer("192.168.1.20", "secret-key")
+check("Obsidian alone is a destination", Sync.hasDestination() == true)
+Sync.runEverything{ done = function(s, e) summary, sync_err = s, e end }
+check("an unpaired device still writes to Obsidian", sync_err == nil and #summary == 1, sync_err)
+check("and the note was pushed", #ko.http.requests == 1 and ko.http.requests[1].method == "PUT")
 
 ko.summary()

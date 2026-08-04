@@ -117,15 +117,25 @@ The web app itself lives in [koreader-ai-plugin-webapp](https://github.com/memit
 
 ## Syncing to an Obsidian vault
 
-**Menu → Lunote → Obsidian vault** writes your reading into an [Obsidian](https://obsidian.md) vault: **one note per book**, holding every highlight from that book with the note you wrote on it and the explanations Lunote generated, in reading order.
+Lunote puts your reading into an [Obsidian](https://obsidian.md) vault as **one note per book**, holding every highlight from that book with the note you wrote on it and the explanations it generated, in reading order.
 
-Point it at the vault once — **Set vault folder…**, then browse to it or type the path — and the notes appear under `Lunote/` inside it, one file per book. From then on each book's note is rewritten when you close the book, so a vault stays current without you doing anything. **Write when a book is closed** turns that off if you would rather write them by hand, and **Write notes to vault** shows how many books are waiting.
+**Menu → Lunote → Sync now** pushes to the web app and to Obsidian in one go. Whichever of the two you have set up is what runs; each keeps its own record of what it has delivered, so a book that reached Obsidian but not the web app is only re-sent to the web app, and a sync that dies half way through picks up where it stopped.
 
-A vault is just a folder of markdown files, so there is nothing to install on the Obsidian side and nothing to reach over wifi. What the plugin needs is a path it can write to:
+### Setting it up
 
-- **The vault on the e-reader.** A folder on the device, e.g. `/mnt/us/Obsidian/Reading` on a jailbroken Kindle. Obsidian on your phone or desktop then syncs that folder however you already sync it.
-- **A folder something else keeps in step.** Syncthing, Dropbox, or a plain copy over USB. Point the plugin at the device side of it.
-- **The vault only on your computer.** Write the notes to a folder on the device, copy that folder into the vault when you plug in. Obsidian 1.12's [CLI](https://obsidian.md/cli) is handy for the last step if the vault is open — `obsidian create vault="Reading" name="Lunote/Some Book" content="$(cat 'Some Book.md')" overwrite silent` — though a plain `cp -r` into the vault folder does the same job.
+**Menu → Lunote → Obsidian vault → Connect to Obsidian…**
+
+You need Obsidian's [Local REST API](https://github.com/coddingtonbear/obsidian-local-rest-api) community plugin, which puts a small server inside Obsidian for the reader to talk to. Install it, open its settings, and copy the API key. On the device, type the address of the machine Obsidian is running on — `192.168.1.20` is enough, it fills in HTTPS and port 27124 — and paste the key. It checks the connection straight away and tells you what answered, so a mistyped address fails there rather than silently later.
+
+From then on, **Sync now** creates each book's note or replaces the one already there. **Test the connection** re-checks it, and **Write notes now** does the vault alone without touching the web app.
+
+The reader has to be able to reach that machine: same wifi at home, or both on something like Tailscale. If Obsidian is closed or the laptop is asleep, the sync says so and the notes go the next time you ask — nothing is lost, they stay queued on the device.
+
+### If your vault is on the e-reader instead
+
+**Write to a folder instead…** takes a path on the device — e.g. `/mnt/us/Obsidian/Reading` on a jailbroken Kindle, or any folder Syncthing or Dropbox keeps in step with your computer. This needs no network at all, and **Write to the folder when a book is closed** (on by default) rewrites a book's note as you close it, so the vault is current before you have put the reader down.
+
+You can use both. A folder on the device is a good offline copy; the network push is what gets it into Obsidian while you are still reading.
 
 A note looks like this:
 
@@ -169,7 +179,9 @@ Explanations are collapsed callouts, so a book with fifty highlights still reads
 
 > **Note:** a book's note is *generated*, not merged into — it is rewritten from the device whenever the book changes, so anything you type into it yourself will be lost. Write in your own notes and link to the blocks above.
 
-This is independent of the web app: exporting to a vault does not need pairing, and neither destination consumes the other's work. You can use both, either, or neither.
+This is independent of the web app: syncing to a vault does not need pairing, and neither destination consumes the other's work. You can use both, either, or neither.
+
+> **On the certificate:** the Local REST API serves HTTPS with a self-signed certificate. The plugin does not verify it — trusting it would mean copying that certificate onto the e-reader, and the API key is what actually authenticates the request. This is a local address, so the exposure is someone already on your network; if that matters to you, turn on the plugin's plain-HTTP port and use `http://192.168.1.20:27123` instead, which is honest about it.
 
 ## Developing
 

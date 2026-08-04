@@ -257,6 +257,140 @@ local function reportVaultSet(vault, err, on_change)
   UIManager:show(InfoMessage:new{ text = text, timeout = 5 })
 end
 
+--- Stores the address and key, then says whether Obsidian actually answered —
+--- the only way to find out you mistyped one of them without going looking for
+--- notes that were never going to arrive.
+local function saveObsidianServer(address, api_key, on_change)
+  local url, err = Obsidian.setServer(address, api_key)
+  if not url then
+    showError(_("Could not use that:") .. "\n\n" .. tostring(err))
+    return
+  end
+  if on_change then on_change() end
+
+  local checking = InfoMessage:new{ text = _("Checking…") }
+  UIManager:show(checking)
+  UIManager:forceRePaint()
+  UIManager:nextTick(function()
+    local ok, detail = Obsidian.testConnection()
+    UIManager:close(checking)
+    UIManager:show(InfoMessage:new{
+      text = ok and (_("Connected to ") .. tostring(detail) .. "\n\n"
+          .. _("Sync will keep your notes up to date."))
+        or (_("Saved, but Obsidian did not answer:") .. "\n\n" .. tostring(detail)
+          .. "\n\n" .. _("Check that Obsidian is running with the Local REST API plugin enabled.")),
+      timeout = ok and 5 or 10,
+    })
+  end)
+end
+
+-- Two fields in one dialog when this KOReader has the widget for it, two dialogs
+-- in a row when it does not — the address is useless without the key, so asking
+-- for them separately still has to end in the same place.
+local function askForApiKey(address, on_change)
+  local dialog
+  dialog = InputDialog:new{
+    title = _("Obsidian API key"),
+    description = _("Copy it from Obsidian: Settings → Local REST API."),
+    input = Obsidian.getApiKey() or "",
+    input_type = "text",
+    buttons = {
+      {
+        {
+          text = _("Cancel"),
+          callback = function() UIManager:close(dialog) end,
+        },
+        {
+          text = _("Save"),
+          is_enter_default = true,
+          callback = function()
+            local key = dialog:getInputText()
+            UIManager:close(dialog)
+            saveObsidianServer(address, key, on_change)
+          end,
+        },
+      },
+    },
+  }
+  UIManager:show(dialog)
+  dialog:onShowKeyboard()
+end
+
+local function showObsidianServerDialog(on_change)
+  local ok, MultiInputDialog = pcall(require, "ui/widget/multiinputdialog")
+  if ok and MultiInputDialog then
+    local dialog
+    local shown = pcall(function()
+      dialog = MultiInputDialog:new{
+        title = _("Connect to Obsidian"),
+        fields = {
+          {
+            description = _("Address of the computer running Obsidian"),
+            text = Obsidian.getServerUrl() or "",
+            hint = "192.168.1.20:27124",
+            input_type = "string",
+          },
+          {
+            description = _("API key, from Settings → Local REST API"),
+            text = Obsidian.getApiKey() or "",
+            hint = _("64 characters"),
+            input_type = "string",
+          },
+        },
+        buttons = {
+          {
+            {
+              text = _("Cancel"),
+              id = "close",
+              callback = function() UIManager:close(dialog) end,
+            },
+            {
+              text = _("Save"),
+              is_enter_default = true,
+              callback = function()
+                local fields = dialog:getFields()
+                UIManager:close(dialog)
+                saveObsidianServer(fields[1], fields[2], on_change)
+              end,
+            },
+          },
+        },
+      }
+      UIManager:show(dialog)
+      dialog:onShowKeyboard()
+    end)
+    if shown then return end
+  end
+
+  local dialog
+  dialog = InputDialog:new{
+    title = _("Connect to Obsidian"),
+    description = _("The address of the computer running Obsidian, e.g. 192.168.1.20:27124. It needs the Local REST API plugin, and has to be on the same network as this reader."),
+    input = Obsidian.getServerUrl() or "",
+    input_type = "text",
+    buttons = {
+      {
+        {
+          text = _("Cancel"),
+          callback = function() UIManager:close(dialog) end,
+        },
+        {
+          text = _("Next"),
+          is_enter_default = true,
+          callback = function()
+            local address = dialog:getInputText()
+            UIManager:close(dialog)
+            if not address or address == "" then return end
+            askForApiKey(address, on_change)
+          end,
+        },
+      },
+    },
+  }
+  UIManager:show(dialog)
+  dialog:onShowKeyboard()
+end
+
 -- KOReader's folder picker is much kinder than typing a path on e-ink, but the
 -- dialog has to work without it too: the widget has moved between releases, and
 -- a missing picker must not cost the user the ability to set a vault at all.
@@ -335,4 +469,5 @@ return {
   isTranslationEnabled = isTranslationEnabled,
   showPairingDialog = showPairingDialog,
   showObsidianVaultDialog = showObsidianVaultDialog,
+  showObsidianServerDialog = showObsidianServerDialog,
 }

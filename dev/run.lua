@@ -152,7 +152,8 @@ commands.help = function()
 
   obsidian
     vault [path]              show or set the vault folder (default: dev/data/vault)
-    obsidian                  write the notes that are out of date
+    connect <address> <key>   point at a running Obsidian's Local REST API
+    obsidian                  write the notes that are out of date, everywhere
     note [book n]             print the note as it stands in the vault
 
   the model
@@ -352,8 +353,28 @@ commands.vault = function(argument)
     end
     say("  vault      " .. tostring(vault))
     say("  folder     " .. (Obsidian.getFolder() ~= "" and Obsidian.getFolder() or "(vault root)"))
-    say("  on close   " .. (Obsidian.isAutoExportEnabled() and "writes" or "off"))
+    say("  obsidian   " .. tostring(Obsidian.getServerUrl() or "(not connected)"))
+    say("  on close   " .. (Obsidian.isAutoExportEnabled() and "writes the file" or "off"))
     say("  pending    " .. tostring(Obsidian.countPending()))
+end
+
+commands.connect = function(argument)
+    local address, key = tostring(argument or ""):match("^(%S+)%s+(%S+)$")
+    if not address then
+        if argument == "off" then
+            Obsidian.forgetServer()
+            say("disconnected from Obsidian")
+            return
+        end
+        say("usage: connect <address> <key>   (or `connect off`)")
+        return
+    end
+    local url, err = Obsidian.setServer(address, key)
+    if not url then say("could not use that: " .. tostring(err)) return end
+    say("connected to " .. url)
+    local ok, detail = Obsidian.testConnection()
+    say(ok and ("  answered: " .. tostring(detail))
+        or ("  but it did not answer: " .. tostring(detail)))
 end
 
 commands.obsidian = function()
@@ -361,9 +382,14 @@ commands.obsidian = function()
         say("no vault set — run `vault` first")
         return
     end
+    local where = {}
+    for _, destination in ipairs(Obsidian.destinations()) do
+        where[#where + 1] = destination == "file" and tostring(Obsidian.getVaultPath())
+            or tostring(Obsidian.getServerUrl())
+    end
     local written, err = Obsidian.exportPending(function(count) say("  … " .. count .. " written") end)
     say(err and string.format("stopped after %d: %s", written, tostring(err))
-        or string.format("wrote %d note(s) to %s", written, tostring(Obsidian.getVaultPath())))
+        or string.format("wrote %d note(s) to %s", written, table.concat(where, " and ")))
 end
 
 commands.note = function(argument)

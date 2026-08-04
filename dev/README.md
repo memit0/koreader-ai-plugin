@@ -77,8 +77,13 @@ lunote> sync
 - **`sql <query>`** — raw SQL against the store. This is the debugger part; it is
   how you check what would actually be synced.
 - **`vault`** then **`obsidian`** then **`note`** — point the plugin at a vault
-  (`dev/data/vault` unless you name one), write the notes, and print the one it
-  produced. `close` writes it too, which is the path the device takes.
+  folder (`dev/data/vault` unless you name one), write the notes, and print the
+  one it produced. `close` writes it too, which is the path the device takes.
+- **`connect <address> <key>`** — point at a running Obsidian's Local REST API
+  and check it answers; `obsidian` then pushes the notes to it. Any HTTP server
+  that accepts `PUT /vault/<path>` stands in for it, which is how this was
+  tested without Obsidian: the self-signed certificate it serves is why the
+  request is made with `verify = "none"`.
 - **`menu`** then **`pick <n>`** — drives the plugin's main menu the way KOReader
   would, including the file-manager case where no book is open.
 - **`mock off`** — stop faking the model and make real API calls.

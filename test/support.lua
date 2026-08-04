@@ -11,7 +11,7 @@ local M = { SCRATCH = SCRATCH, PLUGIN = PLUGIN }
 
 -- Captures what the plugin tried to send, before encoding, so tests can assert
 -- on payload structure directly.
-M.http = { status = 200, response = {}, sent = {}, fail_after = nil, calls = 0 }
+M.http = { status = 200, response = {}, sent = {}, requests = {}, fail_after = nil, calls = 0 }
 M.shown = {}
 M.ticks = {}
 
@@ -22,6 +22,13 @@ local function fake_request(reqt)
     -- to the web app.
     M.http.url = reqt.url
     M.http.headers = reqt.headers
+    M.http.method = reqt.method
+    -- ltn12.source.string is stubbed to hand the body straight back, so this is
+    -- the raw request body — which is markdown, not JSON, for the vault push.
+    table.insert(M.http.requests, {
+        url = reqt.url, method = reqt.method, headers = reqt.headers,
+        body = type(reqt.source) == "string" and reqt.source or nil,
+    })
     if M.http.fail_after and M.http.calls > M.http.fail_after then
         return nil, "connection reset"
     end
@@ -106,6 +113,8 @@ local modules = {
     ["ui/widget/confirmbox"] = Widget:extend{},
     ["ui/widget/inputdialog"] = Widget:extend{ getInputText = function() return "" end,
                                                onShowKeyboard = function() end },
+    ["ui/widget/multiinputdialog"] = Widget:extend{ getFields = function() return {} end,
+                                                    onShowKeyboard = function() end },
     ["ui/widget/menu"] = Widget:extend{ __kind = "Menu" },
     ["ui/event"] = { new = function(_, name, payload)
                          table.insert(M.events, { name = name, payload = payload })
@@ -165,7 +174,7 @@ function M.reset()
     os.execute("rm -rf " .. SCRATCH .. "/dbdir && mkdir -p " .. SCRATCH .. "/dbdir")
     M.http.status, M.http.response = 200, {}
     M.http.sent, M.http.fail_after, M.http.calls, M.http.transport = {}, nil, 0, nil
-    M.http.url, M.http.headers = nil, nil
+    M.http.url, M.http.headers, M.http.method, M.http.requests = nil, nil, nil, {}
     M.shown, M.ticks, M.events = {}, {}, {}
     modules["lunote_config"].features = {}
     for _, name in ipairs({ "lunote_history", "lunote_sync", "lunote_annotations", "lunote_dialogs", "lunote_env",

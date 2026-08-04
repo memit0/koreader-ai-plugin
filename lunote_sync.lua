@@ -16,6 +16,7 @@ Push only: the device is the source of truth and the web app displays. No confli
 resolution, no pull cursor.
 ]]
 local History = require("lunote_history")
+local Obsidian = require("lunote_obsidian")
 local UIManager = require("ui/uimanager")
 local InfoMessage = require("ui/widget/infomessage")
 local http = require("socket.http")
@@ -224,11 +225,58 @@ function Sync.run(callbacks)
     end
 end
 
+--- Everything one "Sync" is waiting to deliver, across both destinations.
+function Sync.countOutstanding()
+    local records = Sync.isConfigured() and (History.countDirty() or 0) or 0
+    return records + Obsidian.countPending()
+end
+
+--- Whether there is anywhere to sync to at all.
+function Sync.hasDestination()
+    return Sync.isConfigured() or Obsidian.isConfigured()
+end
+
+--- One sync, to everywhere this device is set up to send: the web app, then the
+--- Obsidian vault. The two are independent — neither being configured, or
+--- failing, stops the other — and each keeps its own outbox, so whatever did not
+--- get through is simply retried next time.
+---
+--- `callbacks.done(summary, err)` gets a list of "12 records", "3 notes" lines
+--- and the first failure, if any.
+function Sync.runEverything(callbacks)
+    callbacks = callbacks or {}
+    local summary, failure = {}, nil
+
+    if Sync.isConfigured() then
+        Sync.run{
+            progress = callbacks.progress,
+            done = function(sent, err)
+                summary[#summary + 1] = tostring(sent) .. _(" record(s) to the web app")
+                failure = err
+            end,
+        }
+    end
+
+    if Obsidian.isConfigured() then
+        local written, err = Obsidian.exportPending(callbacks.progress)
+        summary[#summary + 1] = tostring(written) .. _(" note(s) to your vault")
+        -- The web app's failure is the one worth reporting first: it ran first,
+        -- and its message says what went wrong before anything else was tried.
+        failure = failure or err
+    end
+
+    if callbacks.done then callbacks.done(summary, failure) end
+end
+
 --- Runs a sync with a progress message, yielding to the UI between batches so the
 --- reader never appears frozen.
 function Sync.runInteractive()
-    local outstanding = History.countDirty() or 0
-    if outstanding == 0 and not History.hasPendingCovers() then
+    if not Sync.hasDestination() then
+        UIManager:show(InfoMessage:new{
+            text = _("Pair with the web app or connect to Obsidian first."), timeout = 5 })
+        return
+    end
+    if Sync.countOutstanding() == 0 and not History.hasPendingCovers() then
         UIManager:show(InfoMessage:new{ text = _("Everything is already synced."), timeout = 3 })
         return
     end
@@ -238,22 +286,23 @@ function Sync.runInteractive()
     UIManager:forceRePaint()
 
     UIManager:nextTick(function()
-        Sync.run{
+        Sync.runEverything{
             progress = function(sent)
                 logger.dbg("Lunote sync: sent", sent)
             end,
-            done = function(sent, err)
+            done = function(summary, err)
                 UIManager:close(message)
+                local sent = table.concat(summary, "\n")
                 if err then
                     UIManager:show(InfoMessage:new{
                         text = _("Sync stopped:") .. "\n\n" .. tostring(err)
-                            .. "\n\n" .. _("Synced so far: ") .. tostring(sent)
-                            .. "\n" .. _("The rest will be retried next time."),
+                            .. "\n\n" .. _("Sent so far:") .. "\n" .. sent
+                            .. "\n\n" .. _("The rest will be retried next time."),
                         timeout = 10,
                     })
                 else
                     UIManager:show(InfoMessage:new{
-                        text = _("Synced ") .. tostring(sent) .. _(" item(s)."),
+                        text = _("Synced:") .. "\n" .. sent,
                         timeout = 3,
                     })
                 end
